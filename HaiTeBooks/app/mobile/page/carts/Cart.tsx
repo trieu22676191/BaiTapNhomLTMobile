@@ -1,6 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   SafeAreaView,
@@ -9,42 +13,119 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
+import { useCart } from "../../context/CartContext";
 
-type CartItem = {
+// API Response types
+type ApiCartItem = {
+  id: number;
+  userId: number;
+  bookId: number;
+  quantity: number;
+};
+
+type Book = {
   id: number;
   title: string;
-  price: number; // current price
-  oldPrice?: number; // optional strikethrough price
+  price: number;
+  imageUrl?: string;
+  stock: number;
+};
+
+type CartItem = {
+  id: number; // cart item id
+  bookId: number;
+  title: string;
+  price: number;
   image: string;
   qty: number;
+  stock: number;
   checked: boolean;
 };
 
-const initialItems: CartItem[] = [
-  {
-    id: 1,
-    title: "Truyện Kể Cho Bé Trước Giờ Đi Ngủ - Giúp Bé Phát...",
-    price: 66000,
-    oldPrice: 78000,
-    image:
-      "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?w=640&h=640&fit=crop",
-    qty: 1,
-    checked: false,
-  },
-  {
-    id: 2,
-    title: "Khu Rừng Đom Đóm (Tái Bản) - Tặng Kèm Lót Ly +...",
-    price: 61500,
-    oldPrice: 68000,
-    image:
-      "https://images.unsplash.com/photo-1528207776546-365bb710ee93?w=640&h=640&fit=crop",
-    qty: 1,
-    checked: false,
-  },
-];
-
 const Cart: React.FC = () => {
-  const [items, setItems] = useState<CartItem[]>(initialItems);
+  const { refreshCart } = useCart();
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch cart từ backend
+  const fetchCart = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Restore token
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) {
+        console.log("No token, user not logged in");
+        setItems([]);
+        setLoading(false);
+        return;
+      }
+
+      setAuthToken(token);
+
+      // Lấy thông tin user để có userId
+      const userResponse = await axiosInstance.get("/users/me");
+      const userId = userResponse.data.id;
+
+      console.log("Fetching cart for userId:", userId);
+
+      // Lấy cart items
+      const cartResponse = await axiosInstance.get<ApiCartItem[]>(
+        `/cart/user/${userId}`
+      );
+      const cartItems = cartResponse.data || [];
+
+      console.log("Cart items from API:", cartItems);
+
+      // Fetch book details cho mỗi cart item
+      const itemsWithDetails = await Promise.all(
+        cartItems.map(async (cartItem) => {
+          try {
+            const bookResponse = await axiosInstance.get<Book>(
+              `/books/${cartItem.bookId}`
+            );
+            const book = bookResponse.data;
+
+            return {
+              id: cartItem.id,
+              bookId: book.id,
+              title: book.title,
+              price: book.price,
+              image: book.imageUrl || "https://via.placeholder.com/300x400",
+              qty: cartItem.quantity,
+              stock: book.stock,
+              checked: false,
+            };
+          } catch (err) {
+            console.error("Error fetching book details:", err);
+            return null;
+          }
+        })
+      );
+
+      // Filter out null items
+      const validItems = itemsWithDetails.filter(
+        (item): item is CartItem => item !== null
+      );
+      setItems(validItems);
+    } catch (error: any) {
+      console.error("Error fetching cart:", error);
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        // User not authenticated
+        setItems([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Load cart khi component mount và khi user quay lại trang
+  useFocusEffect(
+    useCallback(() => {
+      fetchCart();
+    }, [fetchCart])
+  );
 
   const allChecked = useMemo(
     () => items.length > 0 && items.every((i) => i.checked),
@@ -74,26 +155,160 @@ const Cart: React.FC = () => {
     );
   };
 
-  const increase = (id: number) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, qty: i.qty + 1 } : i))
-    );
+  const increase = async (id: number) => {
+    try {
+      // Tìm item hiện tại để lấy quantity
+      const item = items.find((i) => i.id === id);
+      if (!item) return;
+
+      const newQty = item.qty + 1;
+
+      // Update local state ngay (optimistic update)
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, qty: newQty } : i))
+      );
+
+      // Gọi API update quantity - có thể là PUT /cart/update/{id} hoặc PUT /cart/{id}
+      try {
+        await axiosInstance.put(`/cart/update/${id}`, {
+          bookId: item.bookId,
+          quantity: newQty,
+        });
+      } catch (err: any) {
+        // Thử endpoint khác nếu lỗi 404
+        if (err?.response?.status === 404) {
+          await axiosInstance.put(`/cart/${id}`, {
+            bookId: item.bookId,
+            quantity: newQty,
+          });
+        } else {
+          throw err;
+        }
+      }
+
+      // Refresh cart count trong context
+      await refreshCart();
+      console.log("➕ Quantity increased and saved");
+    } catch (error) {
+      console.error("Error increasing quantity:", error);
+      // Rollback nếu lỗi
+      fetchCart();
+    }
   };
 
-  const decrease = (id: number) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty - 1) } : i))
-    );
+  const decrease = async (id: number) => {
+    try {
+      // Tìm item hiện tại để lấy quantity
+      const item = items.find((i) => i.id === id);
+      if (!item) return;
+
+      const newQty = Math.max(1, item.qty - 1);
+
+      // Update local state ngay (optimistic update)
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, qty: newQty } : i))
+      );
+
+      // Gọi API update quantity - có thể là PUT /cart/update/{id} hoặc PUT /cart/{id}
+      try {
+        await axiosInstance.put(`/cart/update/${id}`, {
+          bookId: item.bookId,
+          quantity: newQty,
+        });
+      } catch (err: any) {
+        // Thử endpoint khác nếu lỗi 404
+        if (err?.response?.status === 404) {
+          await axiosInstance.put(`/cart/${id}`, {
+            bookId: item.bookId,
+            quantity: newQty,
+          });
+        } else {
+          throw err;
+        }
+      }
+
+      // Refresh cart count trong context
+      await refreshCart();
+      console.log("➖ Quantity decreased and saved");
+    } catch (error) {
+      console.error("Error decreasing quantity:", error);
+      // Rollback nếu lỗi
+      fetchCart();
+    }
   };
 
-  const removeItem = (id: number) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  const removeItem = async (id: number) => {
+    try {
+      // Gọi API xóa cart item
+      await axiosInstance.delete(`/cart/${id}`);
+
+      // Update local state
+      setItems((prev) => prev.filter((i) => i.id !== id));
+
+      // Refresh cart count trong context
+      await refreshCart();
+      console.log("🗑️ Item removed and cart refreshed");
+    } catch (error) {
+      console.error("Error removing item:", error);
+    }
+  };
+
+  const deleteSelected = () => {
+    const selectedItems = items.filter((i) => i.checked);
+
+    if (selectedItems.length === 0) {
+      Alert.alert("Thông báo", "Vui lòng chọn sản phẩm cần xóa");
+      return;
+    }
+
+    const isDeleteAll = selectedItems.length === items.length;
+    const message = isDeleteAll
+      ? "Bạn có chắc chắn xóa hết giỏ hàng?"
+      : `Bạn có chắc chắn xóa ${selectedItems.length} sản phẩm đã chọn?`;
+
+    Alert.alert("Xác nhận xóa", message, [
+      {
+        text: "Không",
+        style: "cancel",
+      },
+      {
+        text: "Có",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            // Xóa từng item đã chọn
+            await Promise.all(
+              selectedItems.map((item) =>
+                axiosInstance.delete(`/cart/${item.id}`)
+              )
+            );
+
+            // Update local state
+            setItems((prev) => prev.filter((i) => !i.checked));
+
+            // Refresh cart count
+            await refreshCart();
+
+            Alert.alert(
+              "Thành công",
+              `Đã xóa ${selectedItems.length} sản phẩm`
+            );
+            console.log(`🗑️ Deleted ${selectedItems.length} items`);
+          } catch (error) {
+            console.error("Error deleting items:", error);
+            Alert.alert("Lỗi", "Không thể xóa sản phẩm");
+            // Reload cart nếu lỗi
+            fetchCart();
+          }
+        },
+      },
+    ]);
   };
 
   const renderItem = ({ item }: { item: CartItem }) => (
     <View style={styles.itemRow}>
       <TouchableOpacity
-        style={styles.checkbox}
+        style={[styles.checkbox, item.checked && styles.checkboxChecked]}
         onPress={() => toggleOne(item.id)}
       >
         {item.checked ? (
@@ -110,9 +325,6 @@ const Cart: React.FC = () => {
 
         <View style={styles.priceRow}>
           <Text style={styles.price}>{formatVnd(item.price)}</Text>
-          {item.oldPrice ? (
-            <Text style={styles.oldPrice}>{formatVnd(item.oldPrice)}</Text>
-          ) : null}
         </View>
 
         <View style={styles.qtyRow}>
@@ -141,6 +353,20 @@ const Cart: React.FC = () => {
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Giỏ hàng</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#C92127" />
+          <Text style={styles.loadingText}>Đang tải giỏ hàng...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -148,14 +374,24 @@ const Cart: React.FC = () => {
       </View>
 
       <View style={styles.selectAllRow}>
-        <TouchableOpacity style={styles.checkbox} onPress={toggleAll}>
-          {allChecked ? (
-            <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-          ) : null}
+        <View style={styles.selectAllLeft}>
+          <TouchableOpacity
+            style={[styles.checkbox, allChecked && styles.checkboxChecked]}
+            onPress={toggleAll}
+          >
+            {allChecked ? (
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            ) : null}
+          </TouchableOpacity>
+          <Text style={styles.selectAllText}>
+            Chọn tất cả ({items.length} sản phẩm)
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.deleteButton} onPress={deleteSelected}>
+          <Ionicons name="trash-outline" size={20} color="#EF4444" />
+          <Text style={styles.deleteText}>Xóa</Text>
         </TouchableOpacity>
-        <Text style={styles.selectAllText}>
-          Chọn tất cả ({items.length} sản phẩm)
-        </Text>
       </View>
 
       <FlatList
@@ -205,12 +441,41 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFFFFF",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
   selectAllRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  selectAllLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#FEF2F2",
+  },
+  deleteText: {
+    color: "#EF4444",
+    fontSize: 14,
+    fontWeight: "600",
   },
   checkbox: {
     width: 20,
@@ -221,6 +486,10 @@ const styles = StyleSheet.create({
     borderColor: "#D1D5DB",
     alignItems: "center",
     justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: "#C92127",
+    borderColor: "#C92127",
   },
   selectAllText: { color: "#111827" },
 

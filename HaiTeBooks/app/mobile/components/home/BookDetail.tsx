@@ -1,10 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Image,
   Modal,
@@ -49,7 +46,6 @@ const BookDetail: React.FC<BookDetailProps> = ({
   onClose,
 }) => {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [book, setBook] = useState<BookDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,47 +119,6 @@ const BookDetail: React.FC<BookDetailProps> = ({
       );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAddToCart = async () => {
-    if (!book) return;
-
-    try {
-      const token = await AsyncStorage.getItem("auth_token");
-      if (!token) {
-        Alert.alert(
-          "Cần đăng nhập",
-          "Vui lòng đăng nhập để thêm sách vào giỏ hàng",
-          [
-            { text: "Hủy", style: "cancel" },
-            {
-              text: "Đăng nhập",
-              onPress: () => {
-                onClose();
-                router.push({
-                  pathname: "/account",
-                  params: { next: "add_to_cart", bookId: String(book.id) },
-                });
-              },
-            },
-          ]
-        );
-        return;
-      }
-
-      await axiosInstance.post("/carts", {
-        bookId: book.id,
-        quantity: 1,
-      });
-      Alert.alert("Thành công", `Đã thêm "${book.title}" vào giỏ hàng`);
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "Không thể thêm vào giỏ hàng";
-      Alert.alert("Lỗi", msg);
     }
   };
 
@@ -282,8 +237,9 @@ const BookDetail: React.FC<BookDetailProps> = ({
                 {/* Action Buttons */}
                 <View style={styles.actionContainer}>
                   <BuyNowButton
-                    onPress={handleAddToCart}
-                    disabled={book.stock === 0}
+                    bookId={book.id}
+                    bookTitle={book.title}
+                    stock={book.stock}
                   />
                 </View>
               </View>

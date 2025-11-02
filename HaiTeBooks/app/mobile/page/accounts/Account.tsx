@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -45,6 +46,33 @@ const Account: React.FC = () => {
     restoreSession();
   }, []);
 
+  // Re-check session mỗi khi focus vào Account tab
+  useFocusEffect(
+    useCallback(() => {
+      const checkSession = async () => {
+        try {
+          const [token, savedUser] = await Promise.all([
+            AsyncStorage.getItem("auth_token"),
+            AsyncStorage.getItem("auth_user"),
+          ]);
+
+          // Nếu không có token hoặc savedUser, logout
+          if (!token || !savedUser) {
+            setUser(null);
+            setShowProfile(false);
+          } else if (savedUser) {
+            const parsed: User = JSON.parse(savedUser);
+            setUser(parsed);
+          }
+        } catch (error) {
+          console.error("Error checking session:", error);
+          setUser(null);
+        }
+      };
+      checkSession();
+    }, [])
+  );
+
   const handleLogout = useCallback(async () => {
     try {
       await Promise.all([
@@ -70,7 +98,7 @@ const Account: React.FC = () => {
           setUser(userData);
           if (params?.next === "add_to_cart" && params?.bookId) {
             try {
-              await axiosInstance.post("/carts", {
+              await axiosInstance.post("/cart/add", {
                 bookId: Number(params.bookId),
                 quantity: 1,
               });

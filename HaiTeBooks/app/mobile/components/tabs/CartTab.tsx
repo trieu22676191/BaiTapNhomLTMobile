@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useCart } from "../../context/CartContext";
 
 interface CartTabProps {
   isActive?: boolean;
@@ -9,8 +10,12 @@ interface CartTabProps {
 
 const CartTab: React.FC<CartTabProps> = ({ isActive = false }) => {
   const router = useRouter();
+  const { cartCount } = useCart();
   const iconColor = isActive ? "#C92127" : "#999";
   const textColor = isActive ? "#C92127" : "#999";
+
+  // Debug log
+  console.log("🛒 CartTab - count:", cartCount);
 
   return (
     <TouchableOpacity
@@ -24,6 +29,13 @@ const CartTab: React.FC<CartTabProps> = ({ isActive = false }) => {
           size={25}
           color={iconColor}
         />
+        {cartCount > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {cartCount > 99 ? "99+" : cartCount}
+            </Text>
+          </View>
+        )}
       </View>
       <Text style={[styles.text, { color: textColor }]}>Giỏ hàng</Text>
     </TouchableOpacity>
@@ -38,6 +50,32 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: 0,
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -8,
+    right: -12,
+    backgroundColor: "#FF0000",
+    borderRadius: 12,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    elevation: 4, // Android shadow
+    shadowColor: "#000", // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+    textAlign: "center",
   },
   text: {
     fontSize: 12,

@@ -1,10 +1,7 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   StyleSheet,
@@ -37,7 +34,6 @@ const formatPrice = (v: number) =>
   new Intl.NumberFormat("vi-VN").format(v) + " đ";
 
 const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
-  const router = useRouter();
   const [showBookDetail, setShowBookDetail] = useState(false);
   const uri = item.imageUrl || "https://via.placeholder.com/300x400";
 
@@ -107,32 +103,9 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
             }}
           >
             <BuyNowButton
-              onPress={async () => {
-                try {
-                  const token = await AsyncStorage.getItem("auth_token");
-                  if (!token) {
-                    // Điều hướng tới trang tài khoản/đăng nhập, kèm tham số để thêm giỏ sau đăng nhập
-                    router.push({
-                      pathname: "/account",
-                      params: { next: "add_to_cart", bookId: String(item.id) },
-                    });
-                    return;
-                  }
-
-                  await axiosInstance.post("/carts", {
-                    bookId: item.id,
-                    quantity: 1,
-                  });
-                  Alert.alert("Đã thêm vào giỏ", `Đã thêm \"${item.title}\"`);
-                } catch (err: any) {
-                  const msg =
-                    err?.response?.data?.message ||
-                    err?.response?.data?.error ||
-                    err?.message ||
-                    "Không thể thêm vào giỏ";
-                  Alert.alert("Lỗi", msg);
-                }
-              }}
+              bookId={item.id}
+              bookTitle={item.title}
+              stock={item.stock}
             />
           </TouchableOpacity>
         </View>

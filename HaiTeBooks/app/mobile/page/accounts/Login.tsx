@@ -50,13 +50,23 @@ const Login: React.FC<LoginProps> = ({
 
       const response = await axiosInstance.post("/auth/login", loginData);
 
+      console.log("🔐 Login Response:", response.data);
+
       // Lấy token và cấu hình header Authorization
       const token = response.data?.token;
+      console.log(
+        "🔑 Token from login:",
+        token ? `${token.substring(0, 30)}...` : "NULL"
+      );
+
       if (token) {
         setAuthToken(token);
+        console.log("✅ Token saved to axios and AsyncStorage");
         try {
           await AsyncStorage.setItem("auth_token", token);
         } catch {}
+      } else {
+        console.log("⚠️ No token in login response!");
       }
 
       // Nếu đăng nhập thành công, response có thể chứa user data hoặc token
@@ -69,11 +79,7 @@ const Login: React.FC<LoginProps> = ({
         password: "", // Không lưu password
         email: userData?.email || "",
         full_name: userData?.fullName || userData?.full_name || "",
-        phone:
-          userData?.phone ||
-          userData?.phoneNumber ||
-          userData?.sdt ||
-          "",
+        phone: userData?.phone || userData?.phoneNumber || userData?.sdt || "",
         address: userData?.address || userData?.diaChi || "",
         role_id: userData?.role || userData?.role_id || "user",
       };
