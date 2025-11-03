@@ -1,98 +1,47 @@
-import axios from "axios";
-import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import BannerSale from "../../components/home/BannerSale";
 import ProductCard from "../../components/home/ProductCard";
-import axiosInstance from "../../config/axiosConfig";
-
-type ApiBook = {
-  id: number;
-  title: string;
-  author?: string;
-  price: number;
-  stock: number;
-  description?: string;
-  imageUrl?: string;
-  barcode?: string;
-  categoryName?: string;
-};
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = Math.round((SCREEN_WIDTH - 12 * 3) / 2);
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat("vi-VN").format(v) + " đ";
-}
 
 const Home: React.FC = () => {
-  const [books, setBooks] = useState<ApiBook[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
-  useEffect(() => {
-    let mounted = true;
-    const source = axios.CancelToken.source();
+  // ⭐ Pull-to-Refresh handler
+  const onRefresh = () => {
+    setRefreshing(true);
+    setRefreshTrigger((prev) => prev + 1);
 
-    const fetchBooks = async () => {
-      try {
-        const resp = await axiosInstance.get<ApiBook[]>("/books", {
-          cancelToken: source.token,
-        });
-        if (mounted) setBooks(resp.data || []);
-      } catch (err: any) {
-        if (axios.isCancel(err)) return;
-        if (mounted)
-          setError(
-            err?.response?.data?.message ?? err.message ?? "Lỗi khi lấy dữ liệu"
-          );
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchBooks();
-    return () => {
-      mounted = false;
-      source.cancel();
-    };
-  }, []);
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: "center", flex: 1 }]}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={[styles.container, { justifyContent: "center", flex: 1 }]}>
-        <Text style={styles.error}>{error}</Text>
-      </View>
-    );
-  }
+    // Giữ refreshing trong 1 giây để UX mượt hơn
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={["#C92127"]} // Android
+          tintColor="#C92127" // iOS
+          title="Đang làm mới..." // iOS
+          titleColor="#666"
+        />
+      }
+    >
       <BannerSale />
       <View style={styles.section}>
-        <ProductCard />
+        <ProductCard refreshTrigger={refreshTrigger} />
       </View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  // kept only styles actually used in this file
   container: { flex: 1, backgroundColor: "#fff" },
   section: { paddingTop: 8, paddingBottom: 12, backgroundColor: "#fff" },
-  error: { color: "#e74c3c", textAlign: "center" },
 });
 export default Home;

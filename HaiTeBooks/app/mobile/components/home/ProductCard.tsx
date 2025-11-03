@@ -120,127 +120,96 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
   );
 };
 
-const ProductCard: React.FC = () => {
+interface ProductCardProps {
+  onRefresh?: () => void;
+  refreshTrigger?: number;
+}
+
+const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
   const [books, setBooks] = useState<BookWithReviews[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const fetchBooks = async () => {
+    setLoading(true);
     const source = axios.CancelToken.source();
+    try {
+      // Fetch books
+      const booksResp = await axiosInstance.get<ApiBook[]>("/books", {
+        timeout: 10000,
+        cancelToken: source.token,
+      });
 
-    const fetchBooks = async () => {
-      try {
-        // Fetch books
-        const booksResp = await axiosInstance.get<ApiBook[]>("/books", {
-          timeout: 10000,
-          cancelToken: source.token,
-        });
+      const booksData = booksResp.data || [];
 
-        if (!mounted) return;
+      // Fetch reviews for each book in parallel
+      const booksWithReviews = await Promise.all(
+        booksData.map(async (book) => {
+          try {
+            const reviewsResp = await axiosInstance.get<any>(
+              `/reviews/book/${book.id}`,
+              { timeout: 5000, cancelToken: source.token }
+            );
 
-        const booksData = booksResp.data || [];
+            const data = reviewsResp.data;
 
-        // Fetch reviews for each book in parallel
-        const booksWithReviews = await Promise.all(
-          booksData.map(async (book) => {
-            try {
-              const reviewsResp = await axiosInstance.get<any>(
-                `/reviews/book/${book.id}`,
-                { timeout: 5000, cancelToken: source.token }
-              );
+            let reviewCount = 0;
+            let averageRating = 0;
 
-              const data = reviewsResp.data;
+            if (Array.isArray(data)) {
+              // Trả về mảng reviews
+              reviewCount = data.length;
+              const sum = data.reduce((acc: number, r: any) => {
+                const n = Number(r?.rating);
+                return acc + (Number.isFinite(n) ? n : 0);
+              }, 0);
+              averageRating = reviewCount > 0 ? sum / reviewCount : 0;
+            } else if (data && typeof data === "object") {
+              // Trả về object thống kê
+              const count =
+                data.reviewCount ?? data.count ?? data.totalReviews ?? 0;
+              const avg =
+                data.averageRating ??
+                data.avgRating ??
+                data.ratingAverage ??
+                data.average ??
+                0;
 
-              // DEBUG: Xem dữ liệu reviews
-              console.log("=== REVIEWS DEBUG ===");
-              console.log("Book ID:", book.id);
-              console.log("Response data:", data);
-              console.log(
-                "Data type:",
-                Array.isArray(data) ? "Array" : typeof data
-              );
-              console.log("====================");
-
-              let reviewCount = 0;
-              let averageRating = 0;
-
-              if (Array.isArray(data)) {
-                // Trả về mảng reviews
-                reviewCount = data.length;
-                const sum = data.reduce((acc: number, r: any) => {
-                  const n = Number(r?.rating);
-                  return acc + (Number.isFinite(n) ? n : 0);
-                }, 0);
-                averageRating = reviewCount > 0 ? sum / reviewCount : 0;
-              } else if (data && typeof data === "object") {
-                // Trả về object thống kê
-                const count =
-                  data.reviewCount ?? data.count ?? data.totalReviews ?? 0;
-                const avg =
-                  data.averageRating ??
-                  data.avgRating ??
-                  data.ratingAverage ??
-                  data.average ??
-                  0;
-
-                reviewCount = Number(count) || 0;
-                averageRating = Number(avg) || 0;
-              }
-
-              // DEBUG: Kết quả sau khi xử lý
-              console.log(
-                "Book ID:",
-                book.id,
-                "| ReviewCount:",
-                reviewCount,
-                "| AverageRating:",
-                averageRating
-              );
-
-              return {
-                ...book,
-                averageRating,
-                reviewCount,
-              };
-            } catch (err) {
-              // DEBUG: Lỗi khi fetch reviews
-              console.log(
-                "ERROR fetching reviews for book ID:",
-                book.id,
-                "| Error:",
-                err
-              );
-
-              return {
-                ...book,
-                averageRating: 0,
-                reviewCount: 0,
-              };
+              reviewCount = Number(count) || 0;
+              averageRating = Number(avg) || 0;
             }
-          })
-        );
 
-        if (mounted) setBooks(booksWithReviews);
-      } catch (err: any) {
-        if (axios.isCancel(err)) return;
-        if (mounted)
-          setError(
-            err?.response?.data?.message ??
-              err.message ??
-              "Lỗi khi lấy dữ liệu từ API"
-          );
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
+            return {
+              ...book,
+              averageRating,
+              reviewCount,
+            };
+          } catch (err) {
+            return {
+              ...book,
+              averageRating: 0,
+              reviewCount: 0,
+            };
+          }
+        })
+      );
 
+      setBooks(booksWithReviews);
+    } catch (err: any) {
+      if (axios.isCancel(err)) return;
+      setError(
+        err?.response?.data?.message ??
+          err.message ??
+          "Lỗi khi lấy dữ liệu từ API"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchBooks();
-    return () => {
-      mounted = false;
-      source.cancel("Component unmounted");
-    };
-  }, []);
+  }, [refreshTrigger]);
 
   // group books by categoryName
   const sections = useMemo(() => {
@@ -334,7 +303,7 @@ const styles = StyleSheet.create({
   },
   // ensure title area has fixed height (2 lines) so neighbouring cards align
   titleWrap: {
-    height: 44, // đủ cho 2 dòng với fontSize 14 + lineHeight 18
+    height: 44,
     marginBottom: 6,
   },
   title: {
