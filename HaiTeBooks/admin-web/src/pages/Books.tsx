@@ -1,67 +1,136 @@
-import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import axiosInstance from '../config/axios';
-import { Book } from '../types';
-import { Plus, Search, Edit, Trash2, Eye } from 'lucide-react';
+import { Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import axiosInstance from "../config/axios";
+import { Book, Category } from "../types";
 
 const Books = () => {
   const location = useLocation(); // ⭐ Detect navigation
   const [books, setBooks] = useState<Book[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   useEffect(() => {
-    console.log('📚 Books page loaded/refreshed');
+    console.log("📚 Books page loaded/refreshed");
     fetchBooks();
+    fetchCategories();
   }, [location.key]); // ⭐ Fetch lại mỗi khi navigate đến trang này
 
   const fetchBooks = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Fetching books list...');
-      const response = await axiosInstance.get('/books');
+      console.log("🔄 Fetching books list...");
+      const response = await axiosInstance.get("/books");
       console.log(`✅ Loaded ${response.data.length} books`);
       setBooks(response.data);
     } catch (error) {
-      console.error('❌ Lỗi khi tải danh sách sách:', error);
+      console.error("❌ Lỗi khi tải danh sách sách:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await axiosInstance.get("/categories");
+      setCategories(response.data);
+    } catch (error) {
+      console.error("Lỗi khi tải danh mục:", error);
+    }
+  };
+
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa sách này?')) {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa sách này?")) {
       return;
     }
 
     try {
       await axiosInstance.delete(`/books/${id}`);
       setBooks(books.filter((book) => book.id !== id));
-      alert('Xóa sách thành công!');
+      alert("Xóa sách thành công!");
     } catch (error) {
-      console.error('Lỗi khi xóa sách:', error);
-      alert('Có lỗi xảy ra khi xóa sách!');
+      console.error("Lỗi khi xóa sách:", error);
+      alert("Có lỗi xảy ra khi xóa sách!");
     }
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
     }).format(value);
   };
 
   // Filter và Pagination
-  const filteredBooks = books.filter((book) =>
-    book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.author?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredBooks = books.filter((book) => {
+    // Filter theo search term
+    const matchesSearch =
+      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      book.author?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Filter theo category
+    let matchesCategory = false;
+    if (selectedCategoryId === "all") {
+      // Hiển thị tất cả sách
+      matchesCategory = true;
+    } else if (selectedCategoryId === "uncategorized") {
+      // Chỉ hiển thị sách chưa có danh mục
+      const hasNoCategory =
+        (!book.categoryId ||
+          book.categoryId === 0 ||
+          book.categoryId === null) &&
+        (!book.categoryName ||
+          book.categoryName.trim() === "" ||
+          book.categoryName === "-");
+      matchesCategory = hasNoCategory;
+    } else {
+      // Hiển thị sách thuộc danh mục đã chọn
+      // Tìm category được chọn từ danh sách
+      const selectedCategory = categories.find(
+        (cat) => cat.id.toString() === selectedCategoryId
+      );
+
+      if (selectedCategory) {
+        // So sánh theo categoryId (ưu tiên) hoặc categoryName
+        const matchesById =
+          book.categoryId !== null &&
+          book.categoryId !== undefined &&
+          book.categoryId !== 0 &&
+          book.categoryId === selectedCategory.id;
+
+        const matchesByName =
+          !!book.categoryName &&
+          book.categoryName.trim() !== "" &&
+          book.categoryName !== "-" &&
+          book.categoryName === selectedCategory.name;
+
+        matchesCategory = matchesById || matchesByName;
+      } else {
+        // Fallback: so sánh trực tiếp với selectedCategoryId nếu không tìm thấy category
+        const selectedId = parseInt(selectedCategoryId, 10);
+        if (!isNaN(selectedId)) {
+          matchesCategory =
+            book.categoryId === selectedId ||
+            book.categoryId?.toString() === selectedCategoryId;
+        } else {
+          matchesCategory = false;
+        }
+      }
+    }
+
+    return matchesSearch && matchesCategory;
+  });
 
   const totalPages = Math.ceil(filteredBooks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedBooks = filteredBooks.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedBooks = filteredBooks.slice(
+    startIndex,
+    startIndex + itemsPerPage
+  );
 
   if (loading) {
     return (
@@ -77,9 +146,7 @@ const Books = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Quản lý Sách</h1>
-          <p className="text-gray-600 mt-1">
-            Tổng số: {books.length} sách
-          </p>
+          <p className="text-gray-600 mt-1">Tổng số: {books.length} sách</p>
         </div>
         <Link
           to="/admin/books/create"
@@ -92,19 +159,91 @@ const Books = () => {
 
       {/* Search & Filter */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên sách hoặc tác giả..."
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          />
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={20}
+            />
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên sách hoặc tác giả..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+
+          {/* Category Filter */}
+          <div className="relative sm:w-64">
+            <Filter
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={20}
+            />
+            <select
+              value={selectedCategoryId}
+              onChange={(e) => {
+                setSelectedCategoryId(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none bg-white cursor-pointer"
+            >
+              <option value="all">Tất cả danh mục</option>
+              <option value="uncategorized">Chưa phân loại</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id.toString()}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {/* Active Filters Info */}
+        {(selectedCategoryId !== "all" || searchTerm) && (
+          <div className="mt-3 flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-gray-600">Bộ lọc đang áp dụng:</span>
+            {selectedCategoryId !== "all" && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                {selectedCategoryId === "uncategorized"
+                  ? "Chưa phân loại"
+                  : categories.find(
+                      (c) => c.id.toString() === selectedCategoryId
+                    )?.name}
+                <button
+                  onClick={() => setSelectedCategoryId("all")}
+                  className="ml-2 hover:text-primary-900"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {searchTerm && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                Tìm: "{searchTerm}"
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="ml-2 hover:text-gray-900"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedCategoryId("all");
+              }}
+              className="text-sm text-primary-600 hover:text-primary-800 font-medium"
+            >
+              Xóa tất cả
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Books Table */}
@@ -136,7 +275,10 @@ const Books = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedBooks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td
+                    colSpan={6}
+                    className="px-6 py-8 text-center text-gray-500"
+                  >
                     Không tìm thấy sách nào
                   </td>
                 </tr>
@@ -170,7 +312,7 @@ const Books = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {book.author || '-'}
+                        {book.author || "-"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -182,10 +324,10 @@ const Books = () => {
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           book.stock > 20
-                            ? 'bg-green-100 text-green-800'
+                            ? "bg-green-100 text-green-800"
                             : book.stock > 0
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
                         {book.stock} cuốn
@@ -193,7 +335,7 @@ const Books = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {book.categoryName || '-'}
+                        {book.categoryName || "-"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -223,7 +365,9 @@ const Books = () => {
         {totalPages > 1 && (
           <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
             <div className="text-sm text-gray-700">
-              Hiển thị {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredBooks.length)} trong tổng số {filteredBooks.length}
+              Hiển thị {startIndex + 1} -{" "}
+              {Math.min(startIndex + itemsPerPage, filteredBooks.length)} trong
+              tổng số {filteredBooks.length}
             </div>
             <div className="flex gap-2">
               <button
@@ -233,19 +377,21 @@ const Books = () => {
               >
                 Trước
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1 border rounded-md text-sm font-medium ${
-                    currentPage === page
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                (page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 border rounded-md text-sm font-medium ${
+                      currentPage === page
+                        ? "bg-primary-600 text-white border-primary-600"
+                        : "border-gray-300 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                )
+              )}
               <button
                 onClick={() => setCurrentPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
@@ -262,4 +408,3 @@ const Books = () => {
 };
 
 export default Books;
-
