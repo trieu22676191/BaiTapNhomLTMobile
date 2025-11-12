@@ -40,6 +40,7 @@ export interface Order {
   status: 'pending' | 'processing' | 'shipping' | 'completed' | 'cancelled';
   paymentMethod?: string;
   shippingAddress?: string;
+  note?: string;
   items?: OrderItem[];
   createdAt: string;
   updatedAt?: string;

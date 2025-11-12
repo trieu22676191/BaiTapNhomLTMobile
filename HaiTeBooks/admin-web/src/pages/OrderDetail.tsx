@@ -1,4 +1,11 @@
-import { ArrowLeft, CreditCard, MapPin, Package, User } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  FileText,
+  MapPin,
+  Package,
+  User,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axiosInstance from "../config/axios";
@@ -26,6 +33,13 @@ const OrderDetail = () => {
         status: orderData.status?.toLowerCase() || orderData.status,
         totalAmount: orderData.total || orderData.totalAmount,
         createdAt: orderData.orderDate || orderData.createdAt,
+        // Map address - backend có thể trả về "address" hoặc "shippingAddress"
+        shippingAddress:
+          orderData.address ||
+          orderData.shippingAddress ||
+          orderData.user?.address,
+        // Map note - ghi chú của khách hàng
+        note: orderData.note || orderData.customerNote || "",
         // Map user info nếu có
         userName:
           orderData.user?.username ||
@@ -243,6 +257,19 @@ const OrderDetail = () => {
               Phương thức thanh toán
             </h3>
             <p className="text-gray-900">{order.paymentMethod || "COD"}</p>
+          </div>
+
+          {/* Customer Note */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <FileText className="mr-2" size={20} />
+              Ghi chú của khách hàng
+            </h3>
+            <div className="bg-gray-50 rounded-lg p-4 min-h-[80px]">
+              <p className="text-gray-900 whitespace-pre-wrap">
+                {order.note || "Không có ghi chú"}
+              </p>
+            </div>
           </div>
 
           {/* Update Status */}
