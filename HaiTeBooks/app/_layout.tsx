@@ -87,6 +87,13 @@ export default function RootLayout() {
               animation: "none",
             }}
           />
+          <Stack.Screen
+            name="mobile/page/checkout/Checkout"
+            options={{
+              headerShown: false,
+              animation: "none",
+            }}
+          />
           </Stack>
           <BotTabs />
         </View>

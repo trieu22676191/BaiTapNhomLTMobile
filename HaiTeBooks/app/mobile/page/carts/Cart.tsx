@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -44,6 +45,7 @@ type CartItem = {
 };
 
 const Cart: React.FC = () => {
+  const router = useRouter();
   const { refreshCart } = useCart();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -461,8 +463,22 @@ const Cart: React.FC = () => {
           <Text style={styles.totalValue}>{formatVnd(totalPrice)}</Text>
         </View>
         <TouchableOpacity
-          style={styles.checkoutBtn}
+          style={[styles.checkoutBtn, totalSelectedQty === 0 && styles.checkoutBtnDisabled]}
           disabled={totalSelectedQty === 0}
+          onPress={() => {
+            const selectedItems = items.filter((i) => i.checked);
+            if (selectedItems.length === 0) {
+              Alert.alert("Thông báo", "Vui lòng chọn ít nhất một sản phẩm để thanh toán");
+              return;
+            }
+            // Navigate to checkout với danh sách items đã chọn
+            router.push({
+              pathname: "/mobile/page/checkout/Checkout",
+              params: {
+                items: JSON.stringify(selectedItems),
+              },
+            });
+          }}
         >
           <Text style={styles.checkoutText}>Thanh toán</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -615,8 +631,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#FCA5A5",
+    backgroundColor: "#C92127",
     borderRadius: 999,
+  },
+  checkoutBtnDisabled: {
+    backgroundColor: "#D1D5DB",
+    opacity: 0.6,
   },
   checkoutText: { color: "#FFFFFF", fontWeight: "800" },
   emptyBox: { padding: 24, alignItems: "center" },

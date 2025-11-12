@@ -47,10 +47,11 @@ axiosInstance.interceptors.response.use(
       if (error.response.status === 401 || error.response.status === 403) {
         const url = error.config.url || '';
         // Bỏ qua logout cho auth endpoints và một số endpoints đặc biệt
-        // Không logout khi xóa cart item (có thể do lỗi khác, không phải token invalid)
+        // Không logout khi xóa cart item hoặc tạo order (có thể do lỗi khác, không phải token invalid)
         const shouldSkipLogout = 
           url.includes('/auth/') || 
-          url.includes('/cart/') && error.config.method === 'delete';
+          (url.includes('/cart/') && error.config.method === 'delete') ||
+          (url.includes('/orders') && error.config.method === 'post');
         
         if (!shouldSkipLogout) {
           console.log('🔴 Token invalid - Auto logout');

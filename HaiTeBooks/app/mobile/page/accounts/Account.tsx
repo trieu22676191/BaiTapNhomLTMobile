@@ -18,12 +18,29 @@ import Login from "./Login";
 import Register from "./Register";
 import RePass from "./RePass";
 
+type OrderStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "SHIPPING"
+  | "COMPLETED"
+  | "CANCELLED";
+
+interface Order {
+  id: number;
+  userId: number;
+  total: number;
+  status: string;
+  orderDate: string;
+}
+
 const Account: React.FC = () => {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [showRePass, setShowRePass] = useState(false);
-  const [showProfile, setShowProfile] = useState(false); // Thêm state
+  const [showProfile, setShowProfile] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const params = useLocalSearchParams<{ next?: string; bookId?: string }>();
 
   // Rehydrate session when Account mounts
@@ -46,7 +63,27 @@ const Account: React.FC = () => {
     restoreSession();
   }, []);
 
-  // Re-check session mỗi khi focus vào Account tab
+  // Fetch orders của user
+  const fetchOrders = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoadingOrders(true);
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) return;
+
+      setAuthToken(token);
+      const response = await axiosInstance.get(`/orders/user/${user.id}`);
+      setOrders(response.data || []);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, [user?.id]);
+
+  // Re-check session và refresh orders mỗi khi focus vào Account tab
   useFocusEffect(
     useCallback(() => {
       const checkSession = async () => {
@@ -60,18 +97,42 @@ const Account: React.FC = () => {
           if (!token || !savedUser) {
             setUser(null);
             setShowProfile(false);
+            setOrders([]);
           } else if (savedUser) {
             const parsed: User = JSON.parse(savedUser);
             setUser(parsed);
+            // Refresh orders khi quay lại Account
+            if (parsed.id) {
+              const token = await AsyncStorage.getItem("auth_token");
+              if (token) {
+                setAuthToken(token);
+                try {
+                  const response = await axiosInstance.get(
+                    `/orders/user/${parsed.id}`
+                  );
+                  setOrders(response.data || []);
+                } catch (error) {
+                  console.error("Error fetching orders:", error);
+                }
+              }
+            }
           }
         } catch (error) {
           console.error("Error checking session:", error);
           setUser(null);
+          setOrders([]);
         }
       };
       checkSession();
     }, [])
   );
+
+  // Fetch orders khi user thay đổi
+  useEffect(() => {
+    if (user?.id) {
+      fetchOrders();
+    }
+  }, [user?.id, fetchOrders]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -124,6 +185,15 @@ const Account: React.FC = () => {
     );
   }
 
+  // Đếm số lượng orders theo status
+  const orderCounts = {
+    pending: orders.filter((o) => o.status === "PENDING").length,
+    processing: orders.filter((o) => o.status === "PROCESSING").length,
+    shipping: orders.filter((o) => o.status === "SHIPPING").length,
+    completed: orders.filter((o) => o.status === "COMPLETED").length,
+    cancelled: orders.filter((o) => o.status === "CANCELLED").length,
+  };
+
   if (user.role_id === "admin") {
     return (
       <View style={styles.container}>
@@ -148,18 +218,39 @@ const Account: React.FC = () => {
             <View style={styles.orderItem}>
               <View style={styles.orderIcon}>
                 <Ionicons name="wallet-outline" size={24} color="#111827" />
+                {orderCounts.pending > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.pending}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Chờ thanh toán</Text>
             </View>
             <View style={styles.orderItem}>
               <View style={styles.orderIcon}>
                 <Ionicons name="cube-outline" size={24} color="#111827" />
+                {orderCounts.processing > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.processing}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Đang xử lý</Text>
             </View>
             <View style={styles.orderItem}>
               <View style={styles.orderIcon}>
                 <Ionicons name="car-outline" size={24} color="#111827" />
+                {orderCounts.shipping > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.shipping}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Đang giao hàng</Text>
             </View>
@@ -170,6 +261,13 @@ const Account: React.FC = () => {
                   size={24}
                   color="#111827"
                 />
+                {orderCounts.completed > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.completed}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Hoàn tất</Text>
             </View>
@@ -180,6 +278,13 @@ const Account: React.FC = () => {
                   size={24}
                   color="#111827"
                 />
+                {orderCounts.cancelled > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.cancelled}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Đã huỷ</Text>
             </View>
@@ -377,6 +482,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#374151",
     textAlign: "center",
+  },
+  orderBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#C92127",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  orderBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
   },
   menuSection: {
     backgroundColor: "#FFFFFF",
