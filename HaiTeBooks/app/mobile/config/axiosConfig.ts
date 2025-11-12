@@ -3,7 +3,7 @@ import axios from 'axios';
 let authToken: string | null = null;
 
 const axiosInstance = axios.create({
-  baseURL: 'http://192.168.100.156:8080/api',
+  baseURL: 'http://192.168.1.5:8080/api',
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });

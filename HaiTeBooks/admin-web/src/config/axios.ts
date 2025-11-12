@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Thay đổi URL này thành URL backend của bạn
-const API_BASE_URL = 'http://192.168.100.156:8080/api';
+const API_BASE_URL = 'http://192.168.1.5:8080/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
