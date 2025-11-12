@@ -46,8 +46,13 @@ axiosInstance.interceptors.response.use(
       // Auto logout khi token invalid (401) hoặc forbidden (403)
       if (error.response.status === 401 || error.response.status === 403) {
         const url = error.config.url || '';
-        // Bỏ qua logout cho auth endpoints
-        if (!url.includes('/auth/')) {
+        // Bỏ qua logout cho auth endpoints và một số endpoints đặc biệt
+        // Không logout khi xóa cart item (có thể do lỗi khác, không phải token invalid)
+        const shouldSkipLogout = 
+          url.includes('/auth/') || 
+          url.includes('/cart/') && error.config.method === 'delete';
+        
+        if (!shouldSkipLogout) {
           console.log('🔴 Token invalid - Auto logout');
           
           // Import AsyncStorage để clear token
@@ -60,6 +65,8 @@ axiosInstance.interceptors.response.use(
           } catch (e) {
             console.error('❌ Error clearing auth data:', e);
           }
+        } else {
+          console.log('⚠️ Skipping auto logout for:', url);
         }
       }
       

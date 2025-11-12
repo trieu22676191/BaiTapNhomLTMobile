@@ -47,6 +47,7 @@ const Cart: React.FC = () => {
   const { refreshCart } = useCart();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<number | null>(null);
 
   // Fetch cart từ backend
   const fetchCart = useCallback(async () => {
@@ -66,13 +67,14 @@ const Cart: React.FC = () => {
 
       // Lấy thông tin user để có userId
       const userResponse = await axiosInstance.get("/users/me");
-      const userId = userResponse.data.id;
+      const currentUserId = userResponse.data.id;
+      setUserId(currentUserId);
 
-      console.log("Fetching cart for userId:", userId);
+      console.log("Fetching cart for userId:", currentUserId);
 
       // Lấy cart items
       const cartResponse = await axiosInstance.get<ApiCartItem[]>(
-        `/cart/user/${userId}`
+        `/cart/user/${currentUserId}`
       );
       const cartItems = cartResponse.data || [];
 
@@ -239,8 +241,22 @@ const Cart: React.FC = () => {
 
   const removeItem = async (id: number) => {
     try {
-      // Gọi API xóa cart item
-      await axiosInstance.delete(`/cart/${id}`);
+      // Đảm bảo có userId trước khi xóa
+      if (!userId) {
+        // Nếu chưa có userId, lấy lại
+        const token = await AsyncStorage.getItem("auth_token");
+        if (!token) {
+          Alert.alert("Lỗi", "Vui lòng đăng nhập lại.");
+          return;
+        }
+        setAuthToken(token);
+        const userResponse = await axiosInstance.get("/users/me");
+        const currentUserId = userResponse.data.id;
+        setUserId(currentUserId);
+      }
+
+      // Sử dụng endpoint đúng theo API: DELETE /api/cart/remove/{id}
+      await axiosInstance.delete(`/cart/remove/${id}`);
 
       // Update local state
       setItems((prev) => prev.filter((i) => i.id !== id));
@@ -248,8 +264,41 @@ const Cart: React.FC = () => {
       // Refresh cart count trong context
       await refreshCart();
       console.log("🗑️ Item removed and cart refreshed");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error removing item:", error);
+      console.error("Error details:", {
+        status: error?.response?.status,
+        message: error?.response?.data,
+        url: error?.config?.url,
+      });
+      
+      // Xử lý các trường hợp lỗi khác nhau
+      if (error?.response?.status === 401) {
+        // Token hết hạn hoặc không hợp lệ
+        Alert.alert(
+          "Lỗi xác thực",
+          "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+          [{ text: "OK" }]
+        );
+        // Reload cart để kiểm tra lại
+        fetchCart();
+      } else if (error?.response?.status === 403) {
+        // Không có quyền - có thể do backend kiểm tra quyền sở hữu
+        const errorMessage = error?.response?.data?.message || 
+          "Bạn không có quyền xóa sản phẩm này. Vui lòng thử lại.";
+        Alert.alert("Không có quyền", errorMessage);
+        // Reload cart để đồng bộ lại
+        fetchCart();
+      } else if (error?.response?.status === 404) {
+        // Sản phẩm không tồn tại trong giỏ hàng, xóa khỏi local state
+        setItems((prev) => prev.filter((i) => i.id !== id));
+        await refreshCart();
+      } else {
+        // Lỗi khác
+        const errorMessage = error?.response?.data?.message || 
+          "Không thể xóa sản phẩm. Vui lòng thử lại.";
+        Alert.alert("Lỗi", errorMessage);
+      }
     }
   };
 
@@ -276,10 +325,10 @@ const Cart: React.FC = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            // Xóa từng item đã chọn
+            // Xóa từng item đã chọn - sử dụng endpoint đúng: DELETE /api/cart/remove/{id}
             await Promise.all(
               selectedItems.map((item) =>
-                axiosInstance.delete(`/cart/${item.id}`)
+                axiosInstance.delete(`/cart/remove/${item.id}`)
               )
             );
 
