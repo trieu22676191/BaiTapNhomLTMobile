@@ -17,15 +17,19 @@ export default function RootLayout() {
         if (token) {
           setAuthToken(token);
           console.log("Token restored from AsyncStorage");
-          
+
           // Verify token bằng cách gọi API /users/me
           try {
-            const axiosInstance = require("../app/mobile/config/axiosConfig").default;
+            const axiosInstance =
+              require("../app/mobile/config/axiosConfig").default;
             await axiosInstance.get("/users/me");
             console.log("✅ Token verified successfully");
           } catch (verifyError: any) {
             // Token invalid (401/403) hoặc user không tồn tại
-            if (verifyError?.response?.status === 401 || verifyError?.response?.status === 403) {
+            if (
+              verifyError?.response?.status === 401 ||
+              verifyError?.response?.status === 403
+            ) {
               console.log("🔴 Token invalid - Clearing auth data");
               await AsyncStorage.multiRemove(["auth_token", "auth_user"]);
               setAuthToken(undefined);
@@ -52,48 +56,55 @@ export default function RootLayout() {
               presentation: "card",
             }}
           >
-          <Stack.Screen
-            name="account"
-            options={{
-              headerShown: false,
-              animation: "none",
-            }}
-          />
-          <Stack.Screen
-            name="account/register"
-            options={{
-              headerShown: false,
-              animation: "none",
-            }}
-          />
-          <Stack.Screen
-            name="mobile/page/carts/Cart"
-            options={{
-              headerShown: false,
-              animation: "none",
-            }}
-          />
-          <Stack.Screen
-            name="mobile/page/suggestions/Suggestion"
-            options={{
-              headerShown: false,
-              animation: "none",
-            }}
-          />
-          <Stack.Screen
-            name="mobile/page/notifications/Notification"
-            options={{
-              headerShown: false,
-              animation: "none",
-            }}
-          />
-          <Stack.Screen
-            name="mobile/page/checkout/Checkout"
-            options={{
-              headerShown: false,
-              animation: "none",
-            }}
-          />
+            <Stack.Screen
+              name="account"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
+            <Stack.Screen
+              name="account/register"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
+            <Stack.Screen
+              name="mobile/page/carts/Cart"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
+            <Stack.Screen
+              name="mobile/page/suggestions/Suggestion"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
+            <Stack.Screen
+              name="mobile/page/notifications/Notification"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
+            <Stack.Screen
+              name="mobile/page/checkout/Checkout"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
+            <Stack.Screen
+              name="mobile/page/accounts/MyOrder"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
           </Stack>
           <BotTabs />
         </View>

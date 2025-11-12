@@ -209,13 +209,22 @@ const Account: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.section} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.section}
+          activeOpacity={0.7}
+          onPress={() => router.push("/mobile/page/accounts/MyOrder")}
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Đơn hàng của tôi</Text>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </View>
           <View style={styles.orderRow}>
-            <View style={styles.orderItem}>
+            <TouchableOpacity
+              style={styles.orderItem}
+              onPress={() =>
+                router.push("/mobile/page/accounts/MyOrder?status=PENDING")
+              }
+            >
               <View style={styles.orderIcon}>
                 <Ionicons name="wallet-outline" size={24} color="#111827" />
                 {orderCounts.pending > 0 && (
@@ -227,8 +236,13 @@ const Account: React.FC = () => {
                 )}
               </View>
               <Text style={styles.orderLabel}>Chờ thanh toán</Text>
-            </View>
-            <View style={styles.orderItem}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.orderItem}
+              onPress={() =>
+                router.push("/mobile/page/accounts/MyOrder?status=PROCESSING")
+              }
+            >
               <View style={styles.orderIcon}>
                 <Ionicons name="cube-outline" size={24} color="#111827" />
                 {orderCounts.processing > 0 && (
@@ -240,8 +254,13 @@ const Account: React.FC = () => {
                 )}
               </View>
               <Text style={styles.orderLabel}>Đang xử lý</Text>
-            </View>
-            <View style={styles.orderItem}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.orderItem}
+              onPress={() =>
+                router.push("/mobile/page/accounts/MyOrder?status=SHIPPING")
+              }
+            >
               <View style={styles.orderIcon}>
                 <Ionicons name="car-outline" size={24} color="#111827" />
                 {orderCounts.shipping > 0 && (
@@ -253,8 +272,13 @@ const Account: React.FC = () => {
                 )}
               </View>
               <Text style={styles.orderLabel}>Đang giao hàng</Text>
-            </View>
-            <View style={styles.orderItem}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.orderItem}
+              onPress={() =>
+                router.push("/mobile/page/accounts/MyOrder?status=COMPLETED")
+              }
+            >
               <View style={styles.orderIcon}>
                 <Ionicons
                   name="checkmark-circle-outline"
@@ -270,8 +294,13 @@ const Account: React.FC = () => {
                 )}
               </View>
               <Text style={styles.orderLabel}>Hoàn tất</Text>
-            </View>
-            <View style={styles.orderItem}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.orderItem}
+              onPress={() =>
+                router.push("/mobile/page/accounts/MyOrder?status=CANCELLED")
+              }
+            >
               <View style={styles.orderIcon}>
                 <Ionicons
                   name="close-circle-outline"
@@ -287,7 +316,7 @@ const Account: React.FC = () => {
                 )}
               </View>
               <Text style={styles.orderLabel}>Đã huỷ</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
         <View style={styles.menuSection}>
