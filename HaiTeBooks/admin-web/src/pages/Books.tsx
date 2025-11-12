@@ -192,13 +192,40 @@ const Books = () => {
               }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none bg-white cursor-pointer"
             >
-              <option value="all">Tất cả danh mục</option>
-              <option value="uncategorized">Chưa phân loại</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id.toString()}>
-                  {category.name}
-                </option>
-              ))}
+              <option value="all">Tất cả danh mục ({books.length})</option>
+              <option value="uncategorized">
+                Chưa phân loại (
+                {
+                  books.filter(
+                    (book) =>
+                      (!book.categoryId ||
+                        book.categoryId === 0 ||
+                        book.categoryId === null) &&
+                      (!book.categoryName ||
+                        book.categoryName.trim() === "" ||
+                        book.categoryName === "-")
+                  ).length
+                }
+                )
+              </option>
+              {categories.map((category) => {
+                const bookCount = books.filter(
+                  (book) =>
+                    (book.categoryId !== null &&
+                      book.categoryId !== undefined &&
+                      book.categoryId !== 0 &&
+                      book.categoryId === category.id) ||
+                    (book.categoryName &&
+                      book.categoryName.trim() !== "" &&
+                      book.categoryName !== "-" &&
+                      book.categoryName === category.name)
+                ).length;
+                return (
+                  <option key={category.id} value={category.id.toString()}>
+                    {category.name} ({bookCount})
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
