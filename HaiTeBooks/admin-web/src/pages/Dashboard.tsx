@@ -164,11 +164,28 @@ const Dashboard = () => {
         if (!statsData.totalBooks) {
           statsData.totalBooks = books.length;
         }
+
+        // Sách có stock <= 10 được coi là sắp hết hàng
+        const lowStockBooksList = books
+          .filter((book: any) => (book.stock || 0) <= 10)
+          .map((book: any) => ({
+            id: book.id,
+            title: book.title,
+            stock: book.stock || 0,
+            categoryName: book.categoryName,
+          }))
+          .sort(
+            (a: { stock: number }, b: { stock: number }) => a.stock - b.stock
+          ); // Sắp xếp theo stock tăng dần
+
         if (!statsData.lowStockBooks) {
-          // Sách có stock <= 10 được coi là sắp hết hàng
-          statsData.lowStockBooks = books.filter(
-            (book: any) => (book.stock || 0) <= 10
-          ).length;
+          statsData.lowStockBooks = lowStockBooksList.length;
+        }
+        if (
+          !statsData.lowStockBooksList ||
+          statsData.lowStockBooksList.length === 0
+        ) {
+          statsData.lowStockBooksList = lowStockBooksList;
         }
       }
 
@@ -495,6 +512,65 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Low Stock Books List */}
+      {stats?.lowStockBooksList && stats.lowStockBooksList.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-orange-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Sách sắp hết hàng
+            </h2>
+            <AlertTriangle className="text-orange-600" size={20} />
+          </div>
+          <div className="space-y-3">
+            {stats.lowStockBooksList.slice(0, 10).map((book) => (
+              <div
+                key={book.id}
+                className="flex items-center justify-between p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors border border-orange-200"
+              >
+                <div className="flex items-center flex-1">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mr-3 ${
+                      book.stock === 0
+                        ? "bg-red-100 text-red-600"
+                        : book.stock <= 5
+                        ? "bg-orange-100 text-orange-600"
+                        : "bg-yellow-100 text-yellow-600"
+                    }`}
+                  >
+                    {book.stock}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      {book.title}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {book.categoryName || "Không có danh mục"} • Còn{" "}
+                      {book.stock} cuốn
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={`/admin/books/edit/${book.id}`}
+                  className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Xem →
+                </a>
+              </div>
+            ))}
+          </div>
+          {stats.lowStockBooksList.length > 10 && (
+            <div className="mt-4 text-center">
+              <a
+                href="/admin/books"
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Xem tất cả {stats.lowStockBooksList.length} sách sắp hết hàng →
+              </a>
+            </div>
+          )}
         </div>
       )}
 

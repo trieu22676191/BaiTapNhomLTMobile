@@ -85,5 +85,11 @@ export interface DashboardStats {
     totalSold: number;
     revenue: number;
   }>;
+  lowStockBooksList?: Array<{
+    id: number;
+    title: string;
+    stock: number;
+    categoryName?: string;
+  }>;
 }
 
