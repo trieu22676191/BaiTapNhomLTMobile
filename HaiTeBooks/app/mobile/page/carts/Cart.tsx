@@ -424,26 +424,28 @@ const Cart: React.FC = () => {
         <Text style={styles.headerTitle}>Giỏ hàng</Text>
       </View>
 
-      <View style={styles.selectAllRow}>
-        <View style={styles.selectAllLeft}>
-          <TouchableOpacity
-            style={[styles.checkbox, allChecked && styles.checkboxChecked]}
-            onPress={toggleAll}
-          >
-            {allChecked ? (
-              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-            ) : null}
-          </TouchableOpacity>
-          <Text style={styles.selectAllText}>
-            Chọn tất cả ({items.length} sản phẩm)
-          </Text>
-        </View>
+      {items.length > 0 && (
+        <View style={styles.selectAllRow}>
+          <View style={styles.selectAllLeft}>
+            <TouchableOpacity
+              style={[styles.checkbox, allChecked && styles.checkboxChecked]}
+              onPress={toggleAll}
+            >
+              {allChecked ? (
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              ) : null}
+            </TouchableOpacity>
+            <Text style={styles.selectAllText}>
+              Chọn tất cả ({items.length} sản phẩm)
+            </Text>
+          </View>
 
-        <TouchableOpacity style={styles.deleteButton} onPress={deleteSelected}>
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-          <Text style={styles.deleteText}>Xóa</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.deleteButton} onPress={deleteSelected}>
+            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+            <Text style={styles.deleteText}>Xóa</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FlatList
         data={items}
@@ -452,12 +454,24 @@ const Cart: React.FC = () => {
         renderItem={renderItem}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>Giỏ hàng trống</Text>
+            <Ionicons name="cart-outline" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>Giỏ hàng trống</Text>
+            <Text style={styles.emptyText}>
+              Bạn chưa có sản phẩm nào trong giỏ hàng
+            </Text>
+            <TouchableOpacity
+              style={styles.continueShoppingButton}
+              onPress={() => router.replace("/")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.continueShoppingText}>Tiếp tục mua sắm</Text>
+            </TouchableOpacity>
           </View>
         }
       />
 
-      <View style={styles.footer}>
+      {items.length > 0 && (
+        <View style={styles.footer}>
         <View style={styles.totalBox}>
           <Text style={styles.totalLabel}>Thành tiền</Text>
           <Text style={styles.totalValue}>{formatVnd(totalPrice)}</Text>
@@ -484,6 +498,7 @@ const Cart: React.FC = () => {
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -639,8 +654,39 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   checkoutText: { color: "#FFFFFF", fontWeight: "800" },
-  emptyBox: { padding: 24, alignItems: "center" },
-  emptyText: { color: "#6B7280" },
+  emptyBox: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 400,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  continueShoppingButton: {
+    backgroundColor: "#C92127",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  continueShoppingText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
 });
 
 export default Cart;
