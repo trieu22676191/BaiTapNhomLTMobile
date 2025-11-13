@@ -7,6 +7,7 @@ import BotTabs from "../app/mobile/components/BotTabs";
 import Header from "../app/mobile/components/Header";
 import { setAuthToken } from "../app/mobile/config/axiosConfig";
 import { CartProvider } from "../app/mobile/context/CartContext";
+import { ThemeProvider } from "../app/mobile/context/ThemeContext";
 
 export default function RootLayout() {
   // Restore và verify token khi app khởi động
@@ -45,8 +46,9 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <CartProvider>
-        <View style={styles.container}>
+      <ThemeProvider>
+        <CartProvider>
+          <View style={styles.container}>
           <Stack
             screenOptions={{
               header: () => <Header />,
@@ -108,7 +110,8 @@ export default function RootLayout() {
           </Stack>
           <BotTabs />
         </View>
-      </CartProvider>
+        </CartProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

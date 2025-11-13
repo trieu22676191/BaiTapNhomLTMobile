@@ -11,8 +11,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppSettings from "../../components/account/AppSettings"; // Thêm import
 import Profile from "../../components/account/Profile"; // Thêm import
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
+import { useTheme } from "../../context/ThemeContext";
 import { User } from "../../types/user"; // Thêm import
 import Login from "./Login";
 import Register from "./Register";
@@ -35,13 +37,20 @@ interface Order {
 
 const Account: React.FC = () => {
   const router = useRouter();
+  const { colors } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [showRePass, setShowRePass] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAppSettings, setShowAppSettings] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const params = useLocalSearchParams<{ next?: string; bookId?: string }>();
+
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log("showAppSettings changed to:", showAppSettings);
+  }, [showAppSettings]);
 
   // Rehydrate session when Account mounts
   useEffect(() => {
@@ -185,6 +194,21 @@ const Account: React.FC = () => {
     );
   }
 
+  // Nếu đang hiển thị AppSettings
+  if (showAppSettings && user) {
+    console.log("Rendering AppSettings, user:", user?.id);
+    return (
+      <AppSettings
+        user={user}
+        onBack={() => {
+          console.log("AppSettings onBack called");
+          setShowAppSettings(false);
+        }}
+        onAccountDeleted={handleLogout}
+      />
+    );
+  }
+
   // Đếm số lượng orders theo status
   const orderCounts = {
     pending: orders.filter((o) => o.status === "PENDING").length,
@@ -203,8 +227,10 @@ const Account: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>Tài khoản</Text>
       </View>
 
@@ -333,6 +359,11 @@ const Account: React.FC = () => {
             icon="settings"
             iconColor="#C92127"
             label="Cài đặt ứng dụng"
+            onPress={() => {
+              console.log("App Settings button clicked, user:", user?.id);
+              setShowAppSettings(true);
+              console.log("showAppSettings set to:", true);
+            }}
           />
           <MenuItem
             icon="receipt"
