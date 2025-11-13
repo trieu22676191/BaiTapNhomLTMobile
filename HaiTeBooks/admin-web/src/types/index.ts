@@ -2,10 +2,14 @@ export interface User {
   id: number;
   username: string;
   email: string;
-  full_name: string;
+  fullName: string;
   phone?: string;
   address?: string;
-  role_id: 'user' | 'admin';
+  enabled: boolean;
+  role: {
+    id: number;
+    name: string;
+  };
   createdAt?: string;
 }
 

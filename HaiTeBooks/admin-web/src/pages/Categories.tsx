@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react';
-import axiosInstance from '../config/axios';
-import { Category } from '../types';
-import { Plus, Edit, Trash2, FolderOpen } from 'lucide-react';
+import { Edit, FolderOpen, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import axiosInstance from "../config/axios";
+import { Category } from "../types";
 
 const Categories = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
   });
 
   useEffect(() => {
@@ -19,10 +20,10 @@ const Categories = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axiosInstance.get('/categories');
+      const response = await axiosInstance.get("/categories");
       setCategories(response.data);
     } catch (error) {
-      console.error('Lỗi khi tải danh mục:', error);
+      console.error("Lỗi khi tải danh mục:", error);
     } finally {
       setLoading(false);
     }
@@ -30,35 +31,78 @@ const Categories = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
 
     try {
       if (editingCategory) {
         await axiosInstance.put(`/categories/${editingCategory.id}`, formData);
-        alert('Cập nhật danh mục thành công!');
+        alert("Cập nhật danh mục thành công!");
       } else {
-        await axiosInstance.post('/categories', formData);
-        alert('Thêm danh mục mới thành công!');
+        // Gọi API POST để tạo danh mục mới
+        console.log("Đang gửi request POST /categories với dữ liệu:", formData);
+        const response = await axiosInstance.post("/categories", formData);
+        console.log("Danh mục mới đã được tạo:", response.data);
+        alert("Thêm danh mục mới thành công!");
       }
       fetchCategories();
       handleCloseModal();
-    } catch (error) {
-      console.error('Lỗi khi lưu danh mục:', error);
-      alert('Có lỗi xảy ra!');
+    } catch (error: any) {
+      console.error("Lỗi khi lưu danh mục:", error);
+
+      // Xử lý lỗi chi tiết hơn
+      let errorMessage = "Có lỗi xảy ra khi lưu danh mục!";
+
+      if (error.response) {
+        // Lỗi từ server
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 400) {
+          errorMessage =
+            data.message || "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại!";
+        } else if (status === 401) {
+          errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!";
+        } else if (status === 403) {
+          errorMessage =
+            "Bạn không có quyền thực hiện thao tác này! Vui lòng kiểm tra lại cấu hình quyền truy cập trên server.";
+          console.error("403 Forbidden - Chi tiết lỗi:", {
+            status,
+            data,
+            url: error.config?.url,
+            method: error.config?.method,
+            headers: error.config?.headers,
+          });
+        } else if (status === 409) {
+          errorMessage = data.message || "Danh mục này đã tồn tại!";
+        } else if (status >= 500) {
+          errorMessage = "Lỗi server. Vui lòng thử lại sau!";
+        } else {
+          errorMessage = data.message || `Lỗi: ${status}`;
+        }
+      } else if (error.request) {
+        // Không nhận được response từ server
+        errorMessage =
+          "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng!";
+      }
+
+      alert(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa danh mục này?")) {
       return;
     }
 
     try {
       await axiosInstance.delete(`/categories/${id}`);
       setCategories(categories.filter((cat) => cat.id !== id));
-      alert('Xóa danh mục thành công!');
+      alert("Xóa danh mục thành công!");
     } catch (error) {
-      console.error('Lỗi khi xóa danh mục:', error);
-      alert('Có lỗi xảy ra!');
+      console.error("Lỗi khi xóa danh mục:", error);
+      alert("Có lỗi xảy ra!");
     }
   };
 
@@ -66,7 +110,7 @@ const Categories = () => {
     setEditingCategory(category);
     setFormData({
       name: category.name,
-      description: category.description || '',
+      description: category.description || "",
     });
     setShowModal(true);
   };
@@ -74,7 +118,7 @@ const Categories = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingCategory(null);
-    setFormData({ name: '', description: '' });
+    setFormData({ name: "", description: "" });
   };
 
   if (loading) {
@@ -158,7 +202,7 @@ const Categories = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingCategory ? 'Chỉnh sửa danh mục' : 'Thêm danh mục mới'}
+              {editingCategory ? "Chỉnh sửa danh mục" : "Thêm danh mục mới"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -168,7 +212,9 @@ const Categories = () => {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Nhập tên danh mục"
@@ -198,9 +244,19 @@ const Categories = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingCategory ? 'Cập nhật' : 'Thêm mới'}
+                  {submitting ? (
+                    <span className="inline-flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Đang xử lý...
+                    </span>
+                  ) : editingCategory ? (
+                    "Cập nhật"
+                  ) : (
+                    "Thêm mới"
+                  )}
                 </button>
               </div>
             </form>
@@ -212,4 +268,3 @@ const Categories = () => {
 };
 
 export default Categories;
-
