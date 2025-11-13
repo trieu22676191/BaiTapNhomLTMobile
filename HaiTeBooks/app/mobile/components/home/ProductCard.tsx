@@ -1,4 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -126,6 +128,7 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
+  const router = useRouter();
   const [books, setBooks] = useState<BookWithReviews[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -225,6 +228,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
     return map;
   }, [books]);
 
+  const handleViewMore = (category: string) => {
+    router.push({
+      pathname: "/mobile/page/homes/CategoryBooks",
+      params: { category },
+    });
+  };
+
   if (loading) return <ActivityIndicator style={{ margin: 12 }} />;
 
   if (error) return <Text style={styles.error}>{error}</Text>;
@@ -233,7 +243,17 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
     <View>
       {Object.entries(sections).map(([category, items]) => (
         <View key={category} style={styles.section}>
-          <Text style={styles.sectionTitle}>{category}</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{category}</Text>
+            <TouchableOpacity
+              style={styles.viewMoreButton}
+              onPress={() => handleViewMore(category)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.viewMoreText}>Xem thêm</Text>
+              <Ionicons name="chevron-forward" size={16} color="#C92127" />
+            </TouchableOpacity>
+          </View>
 
           <FlatList
             data={items}
@@ -260,12 +280,28 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 14,
   },
-  sectionTitle: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#C5181A",
-    marginBottom: 8,
+    flex: 1,
+  },
+  viewMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  viewMoreText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#C92127",
   },
   card: {
     width: 180,

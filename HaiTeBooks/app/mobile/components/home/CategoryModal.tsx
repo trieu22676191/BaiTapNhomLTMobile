@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,9 +21,11 @@ interface CategoryModalProps {
   onSelectCategory?: (category: string) => void;
 }
 
-type ApiBook = {
+type ApiCategory = {
   id: number;
-  categoryName?: string;
+  name: string;
+  description?: string;
+  bookCount?: number;
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -32,6 +35,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
   onClose,
   onSelectCategory,
 }) => {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -57,20 +61,17 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await axiosInstance.get<ApiBook[]>("/books");
-      const books = response.data || [];
+      const response = await axiosInstance.get<ApiCategory[]>("/categories");
+      const categoriesData = response.data || [];
 
-      // Lấy danh sách categoryName unique
-      const uniqueCategories = Array.from(
-        new Set(
-          books
-            .map((book) => book.categoryName?.trim())
-            .filter((cat) => cat && cat.length > 0)
-        )
-      ).sort() as string[];
+      // Lấy danh sách tên danh mục từ API
+      const categoryNames = categoriesData
+        .map((cat) => cat.name?.trim())
+        .filter((name) => name && name.length > 0)
+        .sort() as string[];
 
       // Thêm "Tất cả" vào đầu danh sách
-      setCategories(["Tất cả", ...uniqueCategories]);
+      setCategories(["Tất cả", ...categoryNames]);
     } catch (err: any) {
       console.error("Error fetching categories:", err);
       setError(
@@ -95,6 +96,11 @@ const CategoryModal: React.FC<CategoryModalProps> = ({
   const handleSelectCategory = (category: string) => {
     onSelectCategory?.(category);
     handleClose();
+    // Navigate to category books page
+    router.push({
+      pathname: "/mobile/page/homes/CategoryBooks",
+      params: { category },
+    });
   };
 
   const renderCategoryItem = ({ item }: { item: string }) => (

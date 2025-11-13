@@ -107,6 +107,13 @@ export default function RootLayout() {
                 animation: "none",
               }}
             />
+            <Stack.Screen
+              name="mobile/page/homes/CategoryBooks"
+              options={{
+                headerShown: false,
+                animation: "none",
+              }}
+            />
           </Stack>
           <BotTabs />
         </View>

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -5,9 +6,27 @@ export interface CategoryTabsProps {
   categories: string[];
   active: string;
   onChange?: (category: string) => void;
+  navigateOnClick?: boolean; // New prop to enable navigation
 }
 
-const CategoryTabs: React.FC<CategoryTabsProps> = ({ categories, active, onChange }) => {
+const CategoryTabs: React.FC<CategoryTabsProps> = ({ 
+  categories, 
+  active, 
+  onChange,
+  navigateOnClick = false 
+}) => {
+  const router = useRouter();
+
+  const handlePress = (category: string) => {
+    onChange?.(category);
+    if (navigateOnClick) {
+      router.push({
+        pathname: "/mobile/page/homes/CategoryBooks",
+        params: { category },
+      });
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
@@ -16,7 +35,7 @@ const CategoryTabs: React.FC<CategoryTabsProps> = ({ categories, active, onChang
           return (
             <TouchableOpacity
               key={cat}
-              onPress={() => onChange?.(cat)}
+              onPress={() => handlePress(cat)}
               style={[styles.tab, isActive && styles.tabActive]}
               activeOpacity={0.7}
             >
