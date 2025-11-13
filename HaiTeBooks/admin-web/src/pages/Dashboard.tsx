@@ -30,16 +30,158 @@ const Dashboard = () => {
       }
       setError(null);
 
-      // Gọi API từ backend
-      const response = await axiosInstance.get("/statistics/overview");
+      // Gọi các API song song để lấy dữ liệu
+      const [statsResponse, ordersResponse, booksResponse, usersResponse] =
+        await Promise.allSettled([
+          axiosInstance.get("/statistics/overview").catch(() => null), // API tổng quan (nếu có)
+          axiosInstance.get("/orders"), // Lấy đơn hàng
+          axiosInstance.get("/books"), // Lấy sách
+          axiosInstance
+            .get("/admin/users")
+            .catch(() => axiosInstance.get("/users")), // Lấy người dùng
+        ]);
 
-      // Kiểm tra và xử lý response
-      if (response.data) {
-        setStats(response.data);
-        console.log("Dashboard stats loaded:", response.data);
-      } else {
-        throw new Error("Không có dữ liệu từ server");
+      // Xử lý dữ liệu từ các API
+      let statsData: DashboardStats = {
+        totalRevenue: 0,
+        totalOrders: 0,
+        totalUsers: 0,
+        totalBooks: 0,
+        pendingOrders: 0,
+        lowStockBooks: 0,
+        recentOrders: [],
+        topSellingBooks: [],
+      };
+
+      // Nếu có API statistics/overview, sử dụng dữ liệu từ đó
+      if (statsResponse.status === "fulfilled" && statsResponse.value?.data) {
+        const overviewData = statsResponse.value.data;
+        statsData = {
+          totalRevenue: overviewData.totalRevenue || 0,
+          totalOrders: overviewData.totalOrders || 0,
+          totalUsers: overviewData.totalUsers || 0,
+          totalBooks: overviewData.totalBooks || 0,
+          pendingOrders: overviewData.pendingOrders || 0,
+          lowStockBooks: overviewData.lowStockBooks || 0,
+          recentOrders: overviewData.recentOrders || [],
+          topSellingBooks: overviewData.topSellingBooks || [],
+        };
       }
+
+      // Xử lý Orders
+      if (ordersResponse.status === "fulfilled" && ordersResponse.value?.data) {
+        const orders = ordersResponse.value.data || [];
+
+        // Normalize orders
+        const normalizedOrders = orders.map((order: any) => ({
+          ...order,
+          status: order.status?.toLowerCase() || order.status,
+          totalAmount: order.total || order.totalAmount || 0,
+          createdAt: order.orderDate || order.createdAt,
+          userName:
+            order.user?.username || order.user?.fullName || order.userName,
+          userEmail: order.user?.email || order.userEmail,
+        }));
+
+        // Tính toán từ orders nếu chưa có từ statistics API
+        if (!statsData.totalOrders) {
+          statsData.totalOrders = normalizedOrders.length;
+        }
+        if (!statsData.pendingOrders) {
+          statsData.pendingOrders = normalizedOrders.filter(
+            (o: any) => o.status === "pending"
+          ).length;
+        }
+        if (!statsData.totalRevenue) {
+          statsData.totalRevenue = normalizedOrders
+            .filter(
+              (o: any) => o.status === "completed" || o.status === "shipping"
+            )
+            .reduce((sum: number, o: any) => sum + (o.totalAmount || 0), 0);
+        }
+        if (!statsData.recentOrders || statsData.recentOrders.length === 0) {
+          // Lấy 5 đơn hàng gần nhất
+          statsData.recentOrders = normalizedOrders
+            .sort((a: any, b: any) => {
+              const dateA = new Date(a.createdAt || 0).getTime();
+              const dateB = new Date(b.createdAt || 0).getTime();
+              return dateB - dateA;
+            })
+            .slice(0, 5);
+        }
+
+        // Tính topSellingBooks từ order items nếu chưa có
+        if (
+          !statsData.topSellingBooks ||
+          statsData.topSellingBooks.length === 0
+        ) {
+          const bookSalesMap = new Map<
+            number,
+            {
+              bookId: number;
+              bookTitle: string;
+              totalSold: number;
+              revenue: number;
+            }
+          >();
+
+          // Duyệt qua tất cả orders và items
+          normalizedOrders.forEach((order: any) => {
+            if (order.items && Array.isArray(order.items)) {
+              order.items.forEach((item: any) => {
+                const bookId = item.bookId;
+                const quantity = item.quantity || 0;
+                const price = item.price || 0;
+                const revenue = quantity * price;
+
+                if (bookSalesMap.has(bookId)) {
+                  const existing = bookSalesMap.get(bookId)!;
+                  existing.totalSold += quantity;
+                  existing.revenue += revenue;
+                } else {
+                  bookSalesMap.set(bookId, {
+                    bookId,
+                    bookTitle: item.bookTitle || `Sách #${bookId}`,
+                    totalSold: quantity,
+                    revenue,
+                  });
+                }
+              });
+            }
+          });
+
+          // Sắp xếp theo doanh thu và lấy top 5
+          statsData.topSellingBooks = Array.from(bookSalesMap.values())
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 5);
+        }
+      }
+
+      // Xử lý Books
+      if (booksResponse.status === "fulfilled" && booksResponse.value?.data) {
+        const books = booksResponse.value.data || [];
+
+        if (!statsData.totalBooks) {
+          statsData.totalBooks = books.length;
+        }
+        if (!statsData.lowStockBooks) {
+          // Sách có stock <= 10 được coi là sắp hết hàng
+          statsData.lowStockBooks = books.filter(
+            (book: any) => (book.stock || 0) <= 10
+          ).length;
+        }
+      }
+
+      // Xử lý Users
+      if (usersResponse.status === "fulfilled" && usersResponse.value?.data) {
+        const users = usersResponse.value.data || [];
+        if (!statsData.totalUsers) {
+          statsData.totalUsers = users.length;
+        }
+      }
+
+      setStats(statsData);
+      console.log("Dashboard stats loaded:", statsData);
     } catch (error: any) {
       console.error("Lỗi khi tải thống kê:", error);
 
@@ -63,8 +205,6 @@ const Dashboard = () => {
       }
 
       setError(errorMessage);
-
-      // Không set mock data, để hiển thị lỗi cho người dùng biết
     } finally {
       setLoading(false);
       setRefreshing(false);
