@@ -116,6 +116,32 @@ const Reviews = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-wrap gap-2 mb-4">
           <button
+            onClick={async () => {
+              setViewMode("all");
+              setReviews([]);
+              setInputId("");
+              // Tự động load tất cả đánh giá khi chọn mode "all"
+              setLoading(true);
+              try {
+                const response = await axiosInstance.get(`/reviews`);
+                setReviews(response.data || []);
+              } catch (error) {
+                console.error("Lỗi khi tải đánh giá:", error);
+                setReviews([]);
+                alert("Không tìm thấy đánh giá!");
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              viewMode === "all"
+                ? "bg-primary-600 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+          >
+            🌐 Tất cả
+          </button>
+          <button
             onClick={() => {
               setViewMode("book");
               setReviews([]);
@@ -142,32 +168,6 @@ const Reviews = () => {
             }`}
           >
             👤 Theo User
-          </button>
-          <button
-            onClick={async () => {
-              setViewMode("all");
-              setReviews([]);
-              setInputId("");
-              // Tự động load tất cả đánh giá khi chọn mode "all"
-              setLoading(true);
-              try {
-                const response = await axiosInstance.get(`/reviews`);
-                setReviews(response.data || []);
-              } catch (error) {
-                console.error("Lỗi khi tải đánh giá:", error);
-                setReviews([]);
-                alert("Không tìm thấy đánh giá!");
-              } finally {
-                setLoading(false);
-              }
-            }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              viewMode === "all"
-                ? "bg-primary-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            🌐 Tất cả
           </button>
         </div>
 
