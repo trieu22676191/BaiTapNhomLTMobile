@@ -31,7 +31,7 @@ const Dashboard = () => {
       setError(null);
 
       // Gọi API từ backend
-      const response = await axiosInstance.get("/admin/dashboard/stats");
+      const response = await axiosInstance.get("/statistics/overview");
 
       // Kiểm tra và xử lý response
       if (response.data) {
