@@ -7,6 +7,8 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
+import axiosInstance from "../config/axiosConfig";
+import BarcodeScanner from "./headerbutton/BarcodeScanner";
 import MenuButton from "./headerbutton/MenuButton";
 import ScanButton from "./headerbutton/ScanButton";
 import Search from "./headerbutton/Search";
@@ -19,6 +21,7 @@ const Header: React.FC<HeaderProps> = () => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [searchText, setSearchText] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
 
   const ROW_HEIGHT = 44;
   const LOGO_HEIGHT = 26;
@@ -45,6 +48,60 @@ const Header: React.FC<HeaderProps> = () => {
     }
   };
 
+  const handleScanSuccess = async (barcode: string) => {
+    try {
+      console.log("🔍 Đang tìm sách với barcode:", barcode);
+
+      // Normalize barcode (trim và loại bỏ khoảng trắng)
+      const normalizedBarcode = barcode.trim().replace(/\s+/g, "");
+
+      // Tìm sách theo barcode
+      const response = await axiosInstance.get("/books");
+      const books = response.data || [];
+
+      console.log(`📚 Tổng số sách: ${books.length}`);
+
+      // Tìm exact match
+      const book = books.find((b: any) => {
+        if (!b.barcode) return false;
+        const bookBarcode = b.barcode.toString().trim().replace(/\s+/g, "");
+        return bookBarcode === normalizedBarcode;
+      });
+
+      if (book) {
+        console.log("✅ Tìm thấy sách:", book.title);
+      } else {
+        console.log("⚠️ Không tìm thấy sách với barcode:", normalizedBarcode);
+        // Log một vài barcode mẫu để debug
+        const sampleBarcodes = books
+          .filter((b: any) => b.barcode)
+          .slice(0, 5)
+          .map((b: any) => b.barcode);
+        console.log("📋 Mẫu barcode trong database:", sampleBarcodes);
+      }
+
+      // Luôn navigate đến CategoryBooks với search query là barcode
+      // CategoryBooks sẽ tự filter và hiển thị kết quả
+      router.push({
+        pathname: "/mobile/page/homes/CategoryBooks",
+        params: {
+          category: "Tất cả",
+          search: normalizedBarcode,
+        },
+      });
+    } catch (error: any) {
+      console.error("❌ Lỗi khi tìm sách:", error);
+      // Vẫn navigate với barcode để người dùng có thể thấy kết quả
+      router.push({
+        pathname: "/mobile/page/homes/CategoryBooks",
+        params: {
+          category: "Tất cả",
+          search: barcode.trim(),
+        },
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top || 0 }]}>
       <View style={[styles.logoWrapper, { top: logoTop }]}>
@@ -62,8 +119,15 @@ const Header: React.FC<HeaderProps> = () => {
           onSubmit={handleSearchSubmit}
           placeholder="Tìm kiếm sách, tác giả, thể loại..."
         />
-        <ScanButton onPress={() => console.log("Scan pressed from Header")} />
+        <ScanButton onPress={() => setShowScanner(true)} />
       </View>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScanner
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </SafeAreaView>
   );
 };

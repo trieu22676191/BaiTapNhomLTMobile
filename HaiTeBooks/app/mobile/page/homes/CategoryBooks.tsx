@@ -159,11 +159,26 @@ const CategoryBooks: React.FC = () => {
   // Filter books by search text
   const filteredBooks = books.filter((book) => {
     if (!searchText.trim()) return true;
-    const searchLower = searchText.toLowerCase();
+    const searchLower = searchText.toLowerCase().trim();
+    const searchNormalized = searchText.trim().replace(/\s+/g, "");
+
+    // Ưu tiên tìm exact match với barcode trước
+    if (book.barcode) {
+      const bookBarcode = book.barcode.toString().trim().replace(/\s+/g, "");
+      if (
+        bookBarcode === searchNormalized ||
+        bookBarcode.toLowerCase() === searchLower
+      ) {
+        return true;
+      }
+    }
+
+    // Sau đó tìm trong các trường khác
     return (
       book.title.toLowerCase().includes(searchLower) ||
       book.author?.toLowerCase().includes(searchLower) ||
-      book.categoryName?.toLowerCase().includes(searchLower)
+      book.categoryName?.toLowerCase().includes(searchLower) ||
+      book.barcode?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -319,11 +334,17 @@ const CategoryBooks: React.FC = () => {
         </View>
       ) : filteredBooks.length === 0 ? (
         <View style={styles.emptyContainer}>
+          <Ionicons name="search-outline" size={64} color="#CCCCCC" />
           <Text style={styles.emptyText}>
             {searchText
-              ? "Không tìm thấy sách nào"
+              ? `Không tìm thấy sách nào với "${searchText}"`
               : "Không có sách nào trong danh mục này"}
           </Text>
+          {searchText && /^\d+$/.test(searchText.trim()) && (
+            <Text style={styles.emptySubText}>
+              Có thể mã vạch này chưa được thêm vào hệ thống
+            </Text>
+          )}
         </View>
       ) : (
         <FlatList
@@ -436,9 +457,17 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 16,
     color: "#6B7280",
     textAlign: "center",
+    marginTop: 16,
+    fontWeight: "500",
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+    marginTop: 8,
   },
   listContent: {
     padding: 12,
