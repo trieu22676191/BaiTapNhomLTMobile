@@ -36,6 +36,17 @@ const Checkout: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
 
+  // Promotion state
+  const [promotionCode, setPromotionCode] = useState("");
+  const [appliedPromotion, setAppliedPromotion] = useState<{
+    id: number;
+    code: string;
+    discountPercent: number;
+    name: string;
+  } | null>(null);
+  const [validatingPromotion, setValidatingPromotion] = useState(false);
+  const [promotionError, setPromotionError] = useState("");
+
   // Form data
   const [formData, setFormData] = useState({
     fullName: "",
@@ -163,11 +174,73 @@ const Checkout: React.FC = () => {
     }
   };
 
-  const totalPrice = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + item.price * item.qty,
     0
   );
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
+
+  // Tính tổng tiền sau khi áp dụng giảm giá
+  const discountAmount = appliedPromotion
+    ? (subtotal * appliedPromotion.discountPercent) / 100
+    : 0;
+  const totalPrice = subtotal - discountAmount;
+
+  const handleValidatePromotion = async () => {
+    if (!promotionCode.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập mã giảm giá");
+      return;
+    }
+
+    try {
+      setValidatingPromotion(true);
+      setPromotionError("");
+
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) {
+        Alert.alert("Lỗi", "Vui lòng đăng nhập để sử dụng mã giảm giá");
+        return;
+      }
+
+      setAuthToken(token);
+
+      const response = await axiosInstance.get(
+        `/promotions/validate/${promotionCode.trim().toUpperCase()}`
+      );
+
+      // Backend trả về PromotionResponse trực tiếp (không có wrapper)
+      if (response.data && response.data.id) {
+        setAppliedPromotion({
+          id: response.data.id,
+          code: response.data.code,
+          discountPercent: response.data.discountPercent,
+          name: response.data.name,
+        });
+        Alert.alert(
+          "Thành công",
+          `Áp dụng mã giảm giá ${response.data.discountPercent}% thành công!`
+        );
+      } else {
+        setPromotionError("Mã giảm giá không hợp lệ");
+        setAppliedPromotion(null);
+      }
+    } catch (error: any) {
+      console.error("Error validating promotion:", error);
+      setPromotionError(
+        error?.response?.data?.message ||
+          "Mã giảm giá không hợp lệ hoặc đã hết hạn"
+      );
+      setAppliedPromotion(null);
+    } finally {
+      setValidatingPromotion(false);
+    }
+  };
+
+  const handleRemovePromotion = () => {
+    setAppliedPromotion(null);
+    setPromotionCode("");
+    setPromotionError("");
+  };
 
   const handleSubmit = async () => {
     // Validation
@@ -243,6 +316,7 @@ const Checkout: React.FC = () => {
                 })),
                 address: formData.address, // OrderRequest có address (String)
                 note: formData.note || "", // OrderRequest có note (String)
+                appliedPromotionId: appliedPromotion?.id || null, // Thêm promotion ID nếu có
               };
 
               console.log(
@@ -469,10 +543,82 @@ const Checkout: React.FC = () => {
               </Text>
             </View>
           ))}
+          {appliedPromotion && (
+            <View style={styles.discountRow}>
+              <Text style={styles.discountLabel}>
+                Giảm giá ({appliedPromotion.code}):
+              </Text>
+              <Text style={styles.discountValue}>
+                -{formatVnd(discountAmount)}
+              </Text>
+            </View>
+          )}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Tổng cộng:</Text>
             <Text style={styles.totalValue}>{formatVnd(totalPrice)}</Text>
           </View>
+        </View>
+
+        {/* Promotion Code */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mã giảm giá</Text>
+
+          {appliedPromotion ? (
+            <View style={styles.promotionApplied}>
+              <View style={styles.promotionAppliedInfo}>
+                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                <View style={styles.promotionAppliedText}>
+                  <Text style={styles.promotionAppliedCode}>
+                    {appliedPromotion.code}
+                  </Text>
+                  <Text style={styles.promotionAppliedName}>
+                    {appliedPromotion.name} - Giảm {appliedPromotion.discountPercent}%
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={handleRemovePromotion}
+                style={styles.removePromotionButton}
+              >
+                <Ionicons name="close-circle" size={24} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.promotionInputContainer}>
+              <TextInput
+                style={[
+                  styles.promotionInput,
+                  promotionError && styles.promotionInputError,
+                ]}
+                value={promotionCode}
+                onChangeText={(text) => {
+                  setPromotionCode(text.toUpperCase());
+                  setPromotionError("");
+                }}
+                placeholder="Nhập mã giảm giá"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.applyPromotionButton,
+                  validatingPromotion && styles.applyPromotionButtonDisabled,
+                ]}
+                onPress={handleValidatePromotion}
+                disabled={validatingPromotion || !promotionCode.trim()}
+              >
+                {validatingPromotion ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.applyPromotionButtonText}>Áp dụng</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {promotionError && (
+            <Text style={styles.promotionErrorText}>{promotionError}</Text>
+          )}
         </View>
 
         {/* Shipping Info */}
@@ -595,6 +741,16 @@ const Checkout: React.FC = () => {
 
       {/* Footer */}
       <View style={styles.footer}>
+        {appliedPromotion && (
+          <View style={styles.footerDiscount}>
+            <Text style={styles.footerDiscountLabel}>
+              Giảm giá ({appliedPromotion.discountPercent}%):
+            </Text>
+            <Text style={styles.footerDiscountValue}>
+              -{formatVnd(discountAmount)}
+            </Text>
+          </View>
+        )}
         <View style={styles.footerTotal}>
           <Text style={styles.footerTotalLabel}>Tổng cộng:</Text>
           <Text style={styles.footerTotalValue}>{formatVnd(totalPrice)}</Text>
@@ -723,6 +879,96 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#C92127",
   },
+  discountRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  discountLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#10B981",
+  },
+  discountValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  promotionInputContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  promotionInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
+    backgroundColor: "#FFFFFF",
+  },
+  promotionInputError: {
+    borderColor: "#EF4444",
+  },
+  applyPromotionButton: {
+    backgroundColor: "#C92127",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  applyPromotionButtonDisabled: {
+    opacity: 0.6,
+  },
+  applyPromotionButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  promotionApplied: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#10B981",
+  },
+  promotionAppliedInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  promotionAppliedText: {
+    marginLeft: 8,
+    flex: 1,
+  },
+  promotionAppliedCode: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  promotionAppliedName: {
+    fontSize: 12,
+    color: "#059669",
+    marginTop: 2,
+  },
+  removePromotionButton: {
+    marginLeft: 8,
+  },
+  promotionErrorText: {
+    fontSize: 12,
+    color: "#EF4444",
+    marginTop: 8,
+  },
   inputGroup: {
     marginBottom: 16,
   },
@@ -796,6 +1042,21 @@ const styles = StyleSheet.create({
     borderTopColor: "#E5E7EB",
     padding: 16,
     gap: 12,
+  },
+  footerDiscount: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  footerDiscountLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#10B981",
+  },
+  footerDiscountValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#10B981",
   },
   footerTotal: {
     flexDirection: "row",

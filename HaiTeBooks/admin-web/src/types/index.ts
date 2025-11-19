@@ -93,3 +93,18 @@ export interface DashboardStats {
   }>;
 }
 
+export interface Promotion {
+  id: number;
+  name: string;
+  code: string;
+  discountPercent: number;
+  startDate: string;
+  endDate: string;
+  quantity: number;
+  isActive: boolean;
+  createdByUserId?: number;
+  approvedByUserId?: number;
+  status?: 'pending' | 'approved' | 'rejected' | 'deactivated';
+  createdAt?: string;
+}
+

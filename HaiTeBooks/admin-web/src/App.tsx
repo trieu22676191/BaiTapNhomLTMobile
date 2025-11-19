@@ -11,6 +11,7 @@ import OrderDetail from './pages/OrderDetail'
 import Users from './pages/Users'
 import Categories from './pages/Categories'
 import Reviews from './pages/Reviews'
+import Promotions from './pages/Promotions'
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="users" element={<Users />} />
             <Route path="categories" element={<Categories />} />
             <Route path="reviews" element={<Reviews />} />
+            <Route path="promotions" element={<Promotions />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/admin" replace />} />

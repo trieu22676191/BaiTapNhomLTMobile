@@ -261,7 +261,7 @@ const Account: React.FC = () => {
                   </View>
                 )}
               </View>
-              <Text style={styles.orderLabel}>Chờ thanh toán</Text>
+              <Text style={styles.orderLabel}>Chờ xác nhận</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.orderItem}

@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   X,
+  Tag,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +31,7 @@ const AdminLayout = () => {
     { path: '/admin/orders', icon: ShoppingCart, label: 'Đơn hàng' },
     { path: '/admin/users', icon: Users, label: 'Người dùng' },
     { path: '/admin/reviews', icon: MessageSquare, label: 'Đánh giá' },
+    { path: '/admin/promotions', icon: Tag, label: 'Khuyến mãi' },
   ];
 
   return (

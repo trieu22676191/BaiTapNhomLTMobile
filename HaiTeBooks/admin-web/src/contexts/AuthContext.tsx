@@ -42,14 +42,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (token && savedUser) {
         try {
-          const parsedUser = JSON.parse(savedUser);
-          // Verify token với backend
-          await axiosInstance.get("/users/me");
-          setUser(parsedUser);
+          // Fetch lại user từ API để đảm bảo có đầy đủ thông tin, đặc biệt là id
+          const response = await axiosInstance.get("/users/me");
+          const apiUser = response.data;
+          
+          console.log("🔍 API User Response:", JSON.stringify(apiUser, null, 2));
+          console.log("🔍 API User ID:", apiUser?.id);
+          console.log("🔍 API User keys:", Object.keys(apiUser || {}));
+          
+          // Normalize user object từ API response
+          const normalizedUser = {
+            id: apiUser?.id || apiUser?.userId,
+            username: apiUser?.username || "",
+            email: apiUser?.email || "",
+            full_name: apiUser?.fullName || apiUser?.full_name || apiUser?.username || "",
+            phone: apiUser?.phone || "",
+            address: apiUser?.address || "",
+            role_id: (apiUser?.role?.name || apiUser?.role || "user").toString().toLowerCase().replace("role_", "") as "admin" | "user",
+          };
+
+          console.log("✅ Normalized User:", JSON.stringify(normalizedUser, null, 2));
+          console.log("✅ Normalized User ID:", normalizedUser.id);
+
+          // Cập nhật localStorage với user đầy đủ thông tin
+          localStorage.setItem("admin_user", JSON.stringify(normalizedUser));
+          setUser(normalizedUser);
         } catch (error) {
           // Token không hợp lệ
+          console.error("❌ Auth check failed:", error);
           localStorage.removeItem("admin_token");
           localStorage.removeItem("admin_user");
+          setUser(null);
         }
       }
       setIsLoading(false);
