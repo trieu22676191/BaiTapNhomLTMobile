@@ -121,6 +121,13 @@ export default function RootLayout() {
                   animation: "none",
                 }}
               />
+              <Stack.Screen
+                name="mobile/page/accounts/OrderDetail"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
             </Stack>
             <BotTabs />
           </View>

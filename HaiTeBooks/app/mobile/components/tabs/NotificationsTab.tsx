@@ -4,9 +4,13 @@ import { StyleSheet, Text, View } from 'react-native';
 
 interface NotificationsTabProps {
   isActive?: boolean;
+  unreadCount?: number;
 }
 
-const NotificationsTab: React.FC<NotificationsTabProps> = ({ isActive = false }) => {
+const NotificationsTab: React.FC<NotificationsTabProps> = ({ 
+  isActive = false,
+  unreadCount = 0 
+}) => {
   const iconColor = isActive ? '#C92127' : '#999';
   const textColor = isActive ? '#C92127' : '#999';
 
@@ -18,6 +22,13 @@ const NotificationsTab: React.FC<NotificationsTabProps> = ({ isActive = false })
           size={25} 
           color={iconColor} 
         />
+        {unreadCount > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </Text>
+          </View>
+        )}
       </View>
       <Text style={[styles.text, { color: textColor }]}>Thông báo</Text>
     </View>
@@ -32,6 +43,26 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: 0,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   text: {
     fontSize: 12,

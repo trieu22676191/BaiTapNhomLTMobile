@@ -317,8 +317,7 @@ const MyOrder: React.FC = () => {
         style={styles.orderCard}
         activeOpacity={0.7}
         onPress={() => {
-          // Có thể navigate đến chi tiết đơn hàng sau
-          console.log("Order detail:", item.id);
+          router.push(`/mobile/page/accounts/OrderDetail?id=${item.id}`);
         }}
       >
         <View style={styles.orderHeader}>

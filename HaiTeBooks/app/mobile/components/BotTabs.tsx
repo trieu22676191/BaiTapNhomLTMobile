@@ -2,6 +2,7 @@ import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useUnreadNotifications } from "../hooks/useUnreadNotifications";
 import AccountTab from "./tabs/AccountTab";
 import CartTab from "./tabs/CartTab";
 import HomeTab from "./tabs/HomeTab";
@@ -27,6 +28,7 @@ const BotTabs: React.FC<BotTabsProps> = ({
   const [currentTab, setCurrentTab] = useState<TabType>(activeTab);
   const router = useRouter();
   const pathname = usePathname();
+  const { unreadCount } = useUnreadNotifications();
 
   const handleTabPress = (tab: TabType) => {
     // Chỉ navigate khi route hiện tại khác với route mục tiêu
@@ -104,7 +106,10 @@ const BotTabs: React.FC<BotTabsProps> = ({
           onPress={() => handleTabPress("notifications")}
           activeOpacity={0.7}
         >
-          <NotificationsTab isActive={currentTab === "notifications"} />
+          <NotificationsTab 
+            isActive={currentTab === "notifications"} 
+            unreadCount={unreadCount}
+          />
         </TouchableOpacity>
 
         <TouchableOpacity
