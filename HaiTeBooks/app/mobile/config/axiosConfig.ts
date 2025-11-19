@@ -3,9 +3,13 @@ import axios from 'axios';
 let authToken: string | null = null;
 
 const axiosInstance = axios.create({
-  baseURL: 'http://192.168.100.156:8080/api',
+  baseURL: 'https://haitebooks-backend.onrender.com/api',
+  // baseURL: 'http://192.168.100.156:8080/api',
   timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
 });
 
 export const setAuthToken = (token?: string) => {
@@ -38,14 +42,22 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response) {
-      console.log('❌ API Error:', error.config.url);
-      console.log('❌ Status:', error.response.status);
+      const url = error.config?.url || '';
+      const status = error.response.status;
+      
+      console.log('❌ API Error:', url);
+      console.log('❌ Status:', status);
       console.log('❌ Status Text:', error.response.statusText);
       console.log('❌ Response Data:', JSON.stringify(error.response.data, null, 2));
       
+      // Xử lý lỗi 400 cho endpoint /books (có thể do backend Hibernate issue)
+      if (status === 400 && url.includes('/books')) {
+        console.log('⚠️ Backend Hibernate error for /books endpoint - this is a backend issue');
+        console.log('💡 Suggestion: Backend needs to fix lazy loading of BookCategory entity');
+      }
+      
       // Auto logout khi token invalid (401) hoặc forbidden (403)
-      if (error.response.status === 401 || error.response.status === 403) {
-        const url = error.config.url || '';
+      if (status === 401 || status === 403) {
         // Bỏ qua logout cho auth endpoints và một số endpoints đặc biệt
         // Không logout khi xóa cart item hoặc tạo order (có thể do lỗi khác, không phải token invalid)
         const shouldSkipLogout = 

@@ -1,12 +1,14 @@
 import axios from 'axios';
 
 // Thay đổi URL này thành URL backend của bạn
-const API_BASE_URL = 'http://192.168.100.156:8080/api';
+const API_BASE_URL = 'https://haitebooks-backend.onrender.com/api';
+//const API_BASE_URL = 'http://192.168.100.156:8080/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
 });
 

@@ -4,6 +4,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
+  AppState,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AppSettings from "../../components/account/AppSettings"; // Thêm import
 import Profile from "../../components/account/Profile"; // Thêm import
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
+import { useCart } from "../../context/CartContext";
 import { useTheme } from "../../context/ThemeContext";
 import { User } from "../../types/user"; // Thêm import
 import Login from "./Login";
@@ -38,6 +41,7 @@ interface Order {
 const Account: React.FC = () => {
   const router = useRouter();
   const { colors } = useTheme();
+  const { refreshCart } = useCart();
   const [user, setUser] = useState<User | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [showRePass, setShowRePass] = useState(false);
@@ -68,10 +72,57 @@ const Account: React.FC = () => {
           const parsed: User = JSON.parse(savedUser);
           setUser(parsed);
         }
+        
+        // Kiểm tra payment status nếu có pending payment
+        await checkPendingPayment();
       } catch {}
     };
     restoreSession();
+
+    // Lắng nghe khi app được mở lại từ background (sau khi thanh toán VNPay)
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        // Khi app active lại, kiểm tra payment status
+        checkPendingPayment();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
+
+  // Kiểm tra payment status nếu có pending payment
+  const checkPendingPayment = async () => {
+    try {
+      const pendingOrderId = await AsyncStorage.getItem("pending_payment_order");
+      if (!pendingOrderId) return;
+
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) return;
+
+      setAuthToken(token);
+
+      // Kiểm tra payment status
+      const paymentResponse = await axiosInstance.get(`/payments/order/${pendingOrderId}`);
+      const payments = paymentResponse.data || [];
+      const successPayment = payments.find((p: any) => p.status === "SUCCESS");
+
+      if (successPayment) {
+        // Payment thành công, xóa pending và refresh cart
+        await AsyncStorage.multiRemove(["pending_payment_order", "pending_payment_txnRef"]);
+        await refreshCart();
+        Alert.alert(
+          "Thanh toán thành công!",
+          `Đơn hàng #${pendingOrderId} đã được thanh toán thành công.`,
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      // Ignore errors khi check payment
+      console.log("Check pending payment:", error);
+    }
+  };
 
   // Fetch orders của user
   const fetchOrders = useCallback(async () => {

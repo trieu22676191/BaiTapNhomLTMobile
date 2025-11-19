@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking as RNLinking,
   ScrollView,
   StyleSheet,
   Text,
@@ -52,7 +54,7 @@ const Checkout: React.FC = () => {
     fullName: "",
     phone: "",
     address: "",
-    paymentMethod: "cod" as "cod" | "bank",
+    paymentMethod: "cod" as "cod" | "vnpay",
     note: "",
   });
 
@@ -317,6 +319,7 @@ const Checkout: React.FC = () => {
                 address: formData.address, // OrderRequest có address (String)
                 note: formData.note || "", // OrderRequest có note (String)
                 appliedPromotionId: appliedPromotion?.id || null, // Thêm promotion ID nếu có
+                paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD", // Thêm paymentMethod
               };
 
               console.log(
@@ -370,6 +373,7 @@ const Checkout: React.FC = () => {
                     quantity: item.qty,
                     price: item.price,
                   })),
+                  paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD",
                 };
                 console.log(
                   "📦 Trying Format 2:",
@@ -394,6 +398,7 @@ const Checkout: React.FC = () => {
                       quantity: item.qty,
                       price: item.price,
                     })),
+                    paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD",
                   };
                   console.log(
                     "📦 Trying Format 3:",
@@ -409,18 +414,76 @@ const Checkout: React.FC = () => {
 
               console.log("✅ Order created:", JSON.stringify(order, null, 2));
 
-              // Nếu thanh toán online, tạo payment
-              if (formData.paymentMethod === "bank") {
+              // Nếu thanh toán VNPay, tạo payment và redirect
+              if (formData.paymentMethod === "vnpay") {
                 try {
-                  const paymentData = {
+                  console.log("💳 Creating VNPay payment for order:", order.id);
+                  
+                  // Gọi API tạo payment VNPay
+                  // Backend sẽ tự động set returnUrl từ config, không cần gửi từ frontend
+                  const paymentRequest = {
                     orderId: order.id,
                     amount: totalPrice,
-                    method: "bank",
+                    method: "VNPAY", // Backend enum: CASH | VNPAY
+                    orderInfo: `Thanh toan don hang #${order.id}`, // Thông tin đơn hàng
                   };
-                  await axiosInstance.post("/payments", paymentData);
-                } catch (paymentError) {
-                  console.error("Payment error:", paymentError);
-                  // Vẫn tiếp tục nếu payment fail
+                  
+                  console.log("📤 Payment request:", JSON.stringify(paymentRequest, null, 2));
+                  
+                  const paymentResponse = await axiosInstance.post("/v1/payment/create", paymentRequest);
+
+                  const paymentUrl = paymentResponse.data?.paymentUrl;
+                  const txnRef = paymentResponse.data?.txnRef;
+                  
+                  if (paymentUrl) {
+                    console.log("✅ VNPay payment URL:", paymentUrl);
+                    console.log("🔑 Transaction Ref:", txnRef);
+                    
+                    // Lưu txnRef và orderId để xử lý callback
+                    if (txnRef) {
+                      await AsyncStorage.setItem("pending_payment_txnRef", txnRef);
+                    }
+                    await AsyncStorage.setItem("pending_payment_order", order.id.toString());
+                    
+                    // Mở URL VNPay trong browser
+                    const canOpen = await RNLinking.canOpenURL(paymentUrl);
+                    if (canOpen) {
+                      await RNLinking.openURL(paymentUrl);
+                      
+                      // Hiển thị thông báo chờ thanh toán
+                      Alert.alert(
+                        "Đang chuyển đến VNPay",
+                        "Vui lòng hoàn tất thanh toán trên trang VNPay. Sau khi thanh toán thành công, bạn sẽ được chuyển về ứng dụng.",
+                        [
+                          {
+                            text: "OK",
+                            onPress: () => {
+                              // Không xóa cart vì chưa thanh toán xong
+                              // User sẽ quay lại sau khi thanh toán
+                              router.replace("/account");
+                            },
+                          },
+                        ]
+                      );
+                      setSubmitting(false);
+                      return; // Dừng lại, không xóa cart vì chưa thanh toán xong
+                    } else {
+                      throw new Error("Không thể mở URL thanh toán");
+                    }
+                  } else {
+                    throw new Error("Không nhận được URL thanh toán từ server");
+                  }
+                } catch (paymentError: any) {
+                  console.error("❌ VNPay payment error:", paymentError);
+                  const errorMessage = 
+                    paymentError?.response?.data?.error ||
+                    paymentError?.response?.data?.message || 
+                    paymentError?.message || 
+                    "Không thể tạo giao dịch thanh toán. Vui lòng thử lại hoặc chọn phương thức thanh toán khác.";
+                  
+                  Alert.alert("Lỗi thanh toán", errorMessage);
+                  setSubmitting(false);
+                  return;
                 }
               }
 
@@ -713,25 +776,25 @@ const Checkout: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.paymentOption,
-              formData.paymentMethod === "bank" && styles.paymentOptionSelected,
+              formData.paymentMethod === "vnpay" && styles.paymentOptionSelected,
             ]}
             onPress={() =>
-              setFormData((prev) => ({ ...prev, paymentMethod: "bank" }))
+              setFormData((prev) => ({ ...prev, paymentMethod: "vnpay" }))
             }
           >
             <View style={styles.paymentOptionLeft}>
               <View
                 style={[
                   styles.radio,
-                  formData.paymentMethod === "bank" && styles.radioSelected,
+                  formData.paymentMethod === "vnpay" && styles.radioSelected,
                 ]}
               >
-                {formData.paymentMethod === "bank" && (
+                {formData.paymentMethod === "vnpay" && (
                   <View style={styles.radioInner} />
                 )}
               </View>
               <Text style={styles.paymentOptionText}>
-                Chuyển khoản ngân hàng
+                Thanh toán qua VNPay
               </Text>
             </View>
             <Ionicons name="card-outline" size={24} color="#C92127" />

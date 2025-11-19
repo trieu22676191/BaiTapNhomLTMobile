@@ -27,6 +27,23 @@ const OrderDetail = () => {
       const response = await axiosInstance.get(`/orders/${id}`);
       const orderData = response.data;
 
+      // Fetch payment records để lấy paymentMethod
+      let paymentMethod = orderData.paymentMethod || "COD";
+      try {
+        const paymentResponse = await axiosInstance.get(`/payments/order/${id}`);
+        const payments = paymentResponse.data || [];
+        if (payments.length > 0) {
+          // Lấy payment method từ payment record đầu tiên
+          const firstPayment = payments[0];
+          if (firstPayment.method) {
+            paymentMethod = firstPayment.method;
+          }
+        }
+      } catch (paymentError) {
+        // Nếu không fetch được payment, dùng paymentMethod từ order hoặc mặc định COD
+        console.log("Không thể fetch payment records, dùng paymentMethod từ order");
+      }
+
       // Normalize dữ liệu giống như trong Orders.tsx
       const normalizedOrder = {
         ...orderData,
@@ -46,6 +63,8 @@ const OrderDetail = () => {
           orderData.user?.full_name ||
           orderData.userName,
         userEmail: orderData.user?.email || orderData.userEmail,
+        // Map paymentMethod - ưu tiên từ payment records, sau đó từ order, cuối cùng là COD
+        paymentMethod: paymentMethod,
       };
 
       setOrder(normalizedOrder);

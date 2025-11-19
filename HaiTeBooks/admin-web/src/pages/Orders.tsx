@@ -16,6 +16,7 @@ const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -23,27 +24,120 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     try {
-      const response = await axiosInstance.get("/orders");
+      setLoading(true);
+      setError(null);
 
-      // Backend có thể trả về status dạng UPPERCASE (PENDING, PROCESSING) hoặc lowercase
-      // Normalize về lowercase để đồng nhất
-      const normalizedOrders = (response.data || []).map((order: any) => {
+      // Backend trả về List<OrderResponse> trực tiếp từ GET /api/orders
+      console.log("🔄 Fetching orders from /orders endpoint...");
+
+      // Thêm Accept header để đảm bảo backend trả về JSON
+      const response = await axiosInstance.get("/orders", {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      console.log("📥 Response status:", response.status);
+      console.log("📥 Response headers:", response.headers);
+      console.log("📥 Response data type:", typeof response.data);
+      console.log("📥 Response data:", response.data);
+
+      // Backend trả về List<OrderResponse> - response.data là array
+      let ordersData = response.data || [];
+
+      // Kiểm tra response data
+      if (!Array.isArray(ordersData)) {
+        console.warn(
+          "⚠️ Response data is not an array:",
+          typeof ordersData,
+          ordersData
+        );
+        // Nếu response.data là object, thử extract array
+        if (ordersData && typeof ordersData === "object") {
+          if (Array.isArray(ordersData.data)) {
+            ordersData = ordersData.data;
+          } else if (Array.isArray(ordersData.content)) {
+            ordersData = ordersData.content;
+          } else {
+            ordersData = [];
+          }
+        } else {
+          ordersData = [];
+        }
+      }
+
+      console.log(`✅ Received ${ordersData.length} orders from backend`);
+
+      // Backend trả về OrderResponse với format:
+      // { id, userId, userName, userEmail, total, status, orderDate, address, note, items }
+      // Status từ backend là UPPERCASE (PENDING, PROCESSING, etc.)
+      const normalizedOrders = ordersData.map((order: any) => {
         const normalized = {
           ...order,
+          // Normalize status về lowercase để đồng nhất với frontend
           status: order.status?.toLowerCase() || order.status,
+          // Map totalAmount từ total
           totalAmount: order.total || order.totalAmount,
+          // Map createdAt từ orderDate
           createdAt: order.orderDate || order.createdAt,
-          // Map user info nếu có
+          // User info đã có sẵn trong OrderResponse (userName, userEmail)
           userName:
-            order.user?.username || order.user?.full_name || order.userName,
-          userEmail: order.user?.email || order.userEmail,
+            order.userName || order.user?.username || order.user?.full_name,
+          userEmail: order.userEmail || order.user?.email,
+          // Map shippingAddress từ address
+          shippingAddress: order.address || order.shippingAddress,
+          // Map paymentMethod - mặc định COD (backend không có trong OrderResponse)
+          paymentMethod: order.paymentMethod || "COD",
         };
         return normalized;
       });
 
       setOrders(normalizedOrders);
-    } catch (error) {
-      console.error("Lỗi khi tải đơn hàng:", error);
+      setError(null);
+    } catch (error: any) {
+      console.error("❌ Lỗi khi tải đơn hàng:", error);
+      console.error("Error details:", {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        message: error?.message,
+        url: error?.config?.url,
+      });
+
+      // Hiển thị thông báo lỗi chi tiết
+      const errorData = error?.response?.data;
+      const errorMessage =
+        errorData?.message || errorData?.error || error?.message;
+
+      if (error?.response?.status === 400) {
+        // Lỗi 400 có thể do lazy loading issue hoặc validation error
+        const detailedError = errorMessage
+          ? `Backend trả về lỗi 400: ${errorMessage}. Có thể do lỗi lazy loading khi serialize Order entity.`
+          : "Backend trả về lỗi 400. Có thể do lỗi lazy loading khi serialize Order entity (giống như lỗi BookCategory trước đó).";
+        setError(detailedError);
+        console.error(
+          "💡 Suggestion: Backend cần fix lazy loading của Order entity (User, OrderItems, Payment)"
+        );
+      } else if (error?.response?.status === 500) {
+        const detailedError = errorMessage
+          ? `Backend trả về lỗi 500: ${errorMessage}`
+          : "Backend trả về lỗi 500. Có lỗi xảy ra ở server, vui lòng kiểm tra backend logs.";
+        setError(detailedError);
+      } else if (
+        error?.response?.status === 401 ||
+        error?.response?.status === 403
+      ) {
+        setError("Bạn không có quyền truy cập. Vui lòng đăng nhập lại.");
+      } else {
+        setError(
+          `Không thể tải danh sách đơn hàng. Lỗi: ${
+            error?.response?.status || error?.message || "Unknown"
+          }${errorMessage ? ` - ${errorMessage}` : ""}`
+        );
+      }
+
+      // Set empty array để hiển thị "Không có đơn hàng nào"
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -153,6 +247,26 @@ const Orders = () => {
           Làm mới
         </button>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-red-600 font-medium">{error}</span>
+            </div>
+            <button
+              onClick={() => {
+                setError(null);
+                fetchOrders();
+              }}
+              className="text-red-600 hover:text-red-800 font-medium"
+            >
+              Thử lại
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Status Filter */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

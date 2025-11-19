@@ -47,8 +47,6 @@ const CARD_WIDTH = (SCREEN_WIDTH - 24 - 8) / 2; // 2 columns with padding and ga
 const formatPrice = (v: number) =>
   new Intl.NumberFormat("vi-VN").format(v) + " ₫";
 
-const BOOKS_API_URL = "https://haitebooks-backend.onrender.com/api/books";
-
 const CategoryBooks: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -79,7 +77,7 @@ const CategoryBooks: React.FC = () => {
     const source = axios.CancelToken.source();
     try {
       // Fetch all books
-      const booksResp = await axios.get<ApiBook[]>(BOOKS_API_URL, {
+      const booksResp = await axiosInstance.get<ApiBook[]>("/books", {
         timeout: 10000,
         cancelToken: source.token,
       });
@@ -95,53 +93,14 @@ const CategoryBooks: React.FC = () => {
         );
       }
 
-      // Fetch reviews for each book in parallel
-      const booksWithReviews = await Promise.all(
-        booksData.map(async (book) => {
-          try {
-            const reviewsResp = await axiosInstance.get<any>(
-              `/reviews/book/${book.id}`,
-              { timeout: 5000, cancelToken: source.token }
-            );
-
-            const data = reviewsResp.data;
-            let reviewCount = 0;
-            let averageRating = 0;
-
-            if (Array.isArray(data)) {
-              reviewCount = data.length;
-              const sum = data.reduce((acc: number, r: any) => {
-                const n = Number(r?.rating);
-                return acc + (Number.isFinite(n) ? n : 0);
-              }, 0);
-              averageRating = reviewCount > 0 ? sum / reviewCount : 0;
-            } else if (data && typeof data === "object") {
-              const count =
-                data.reviewCount ?? data.count ?? data.totalReviews ?? 0;
-              const avg =
-                data.averageRating ??
-                data.avgRating ??
-                data.ratingAverage ??
-                data.average ??
-                0;
-              reviewCount = Number(count) || 0;
-              averageRating = Number(avg) || 0;
-            }
-
-            return {
-              ...book,
-              averageRating,
-              reviewCount,
-            };
-          } catch (err) {
-            return {
-              ...book,
-              averageRating: 0,
-              reviewCount: 0,
-            };
-          }
-        })
-      );
+      // Không fetch reviews ở đây để tối ưu performance
+      // Reviews sẽ được fetch khi user mở BookDetail
+      // Set default values cho reviews
+      const booksWithReviews: BookWithReviews[] = booksData.map((book) => ({
+        ...book,
+        averageRating: 0,
+        reviewCount: 0,
+      }));
 
       setBooks(booksWithReviews);
     } catch (err: any) {

@@ -51,7 +51,7 @@ const Cart: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<number | null>(null);
 
-  // Fetch cart từ backend
+  // Fetch cart từ backend - chỉ gọi khi cần
   const fetchCart = useCallback(async () => {
     try {
       setLoading(true);

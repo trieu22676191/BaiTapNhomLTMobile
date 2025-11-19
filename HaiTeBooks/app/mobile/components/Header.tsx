@@ -49,57 +49,21 @@ const Header: React.FC<HeaderProps> = () => {
   };
 
   const handleScanSuccess = async (barcode: string) => {
-    try {
-      console.log("🔍 Đang tìm sách với barcode:", barcode);
+    // Normalize barcode (trim và loại bỏ khoảng trắng)
+    const normalizedBarcode = barcode.trim().replace(/\s+/g, "");
+    
+    console.log("🔍 Đang tìm sách với barcode:", normalizedBarcode);
 
-      // Normalize barcode (trim và loại bỏ khoảng trắng)
-      const normalizedBarcode = barcode.trim().replace(/\s+/g, "");
-
-      // Tìm sách theo barcode
-      const response = await axiosInstance.get("/books");
-      const books = response.data || [];
-
-      console.log(`📚 Tổng số sách: ${books.length}`);
-
-      // Tìm exact match
-      const book = books.find((b: any) => {
-        if (!b.barcode) return false;
-        const bookBarcode = b.barcode.toString().trim().replace(/\s+/g, "");
-        return bookBarcode === normalizedBarcode;
-      });
-
-      if (book) {
-        console.log("✅ Tìm thấy sách:", book.title);
-      } else {
-        console.log("⚠️ Không tìm thấy sách với barcode:", normalizedBarcode);
-        // Log một vài barcode mẫu để debug
-        const sampleBarcodes = books
-          .filter((b: any) => b.barcode)
-          .slice(0, 5)
-          .map((b: any) => b.barcode);
-        console.log("📋 Mẫu barcode trong database:", sampleBarcodes);
-      }
-
-      // Luôn navigate đến CategoryBooks với search query là barcode
-      // CategoryBooks sẽ tự filter và hiển thị kết quả
-      router.push({
-        pathname: "/mobile/page/homes/CategoryBooks",
-        params: {
-          category: "Tất cả",
-          search: normalizedBarcode,
-        },
-      });
-    } catch (error: any) {
-      console.error("❌ Lỗi khi tìm sách:", error);
-      // Vẫn navigate với barcode để người dùng có thể thấy kết quả
-      router.push({
-        pathname: "/mobile/page/homes/CategoryBooks",
-        params: {
-          category: "Tất cả",
-          search: barcode.trim(),
-        },
-      });
-    }
+    // Không cần gọi API /books ở đây
+    // Chỉ cần navigate đến CategoryBooks với search query
+    // CategoryBooks sẽ tự fetch và filter books
+    router.push({
+      pathname: "/mobile/page/homes/CategoryBooks",
+      params: {
+        category: "Tất cả",
+        search: normalizedBarcode,
+      },
+    });
   };
 
   return (

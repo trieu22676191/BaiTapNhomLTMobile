@@ -7,7 +7,7 @@ const Reviews = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"user" | "book" | "all">("book");
+  const [viewMode, setViewMode] = useState<"user" | "book" | "all">("all");
   const [inputId, setInputId] = useState("");
 
   const fetchReviews = async () => {

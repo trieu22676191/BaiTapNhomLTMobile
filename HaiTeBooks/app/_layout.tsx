@@ -128,6 +128,13 @@ export default function RootLayout() {
                   animation: "none",
                 }}
               />
+              <Stack.Screen
+                name="mobile/page/payment/VNPayReturn"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
             </Stack>
             <BotTabs />
           </View>

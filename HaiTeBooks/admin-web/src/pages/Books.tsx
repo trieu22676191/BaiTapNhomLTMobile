@@ -16,30 +16,27 @@ const Books = () => {
 
   useEffect(() => {
     console.log("📚 Books page loaded/refreshed");
-    fetchBooks();
-    fetchCategories();
+    fetchData();
   }, [location.key]); // ⭐ Fetch lại mỗi khi navigate đến trang này
 
-  const fetchBooks = async () => {
+  // Tối ưu: Gọi books và categories song song thay vì tuần tự
+  const fetchData = async () => {
     setLoading(true);
     try {
-      console.log("🔄 Fetching books list...");
-      const response = await axiosInstance.get("/books");
-      console.log(`✅ Loaded ${response.data.length} books`);
-      setBooks(response.data);
+      console.log("🔄 Fetching books and categories...");
+      // Gọi 2 API song song để tối ưu performance
+      const [booksResponse, categoriesResponse] = await Promise.all([
+        axiosInstance.get("/books"),
+        axiosInstance.get("/categories"),
+      ]);
+      
+      console.log(`✅ Loaded ${booksResponse.data.length} books`);
+      setBooks(booksResponse.data);
+      setCategories(categoriesResponse.data);
     } catch (error) {
-      console.error("❌ Lỗi khi tải danh sách sách:", error);
+      console.error("❌ Lỗi khi tải dữ liệu:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await axiosInstance.get("/categories");
-      setCategories(response.data);
-    } catch (error) {
-      console.error("Lỗi khi tải danh mục:", error);
     }
   };
 

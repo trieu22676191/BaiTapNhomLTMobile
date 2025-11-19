@@ -30,16 +30,28 @@ const Dashboard = () => {
       }
       setError(null);
 
-      // Gọi các API song song để lấy dữ liệu
-      const [statsResponse, ordersResponse, booksResponse, usersResponse] =
-        await Promise.allSettled([
-          axiosInstance.get("/statistics/overview").catch(() => null), // API tổng quan (nếu có)
-          axiosInstance.get("/orders"), // Lấy đơn hàng
-          axiosInstance.get("/books"), // Lấy sách
+      // Tối ưu: Ưu tiên gọi API statistics/overview nếu có (1 request thay vì 4)
+      // Nếu không có thì mới gọi các API riêng lẻ
+      let statsResponse: any = null;
+      let ordersResponse: any = null;
+      let booksResponse: any = null;
+      let usersResponse: any = null;
+
+      try {
+        // Thử gọi API tổng quan trước
+        statsResponse = await axiosInstance.get("/statistics/overview");
+        console.log("✅ Using statistics/overview API");
+      } catch (error) {
+        // Nếu không có API tổng quan, gọi các API riêng lẻ song song
+        console.log("⚠️ statistics/overview not available, fetching individual APIs");
+        [ordersResponse, booksResponse, usersResponse] = await Promise.allSettled([
+          axiosInstance.get("/orders"),
+          axiosInstance.get("/books"),
           axiosInstance
             .get("/admin/users")
-            .catch(() => axiosInstance.get("/users")), // Lấy người dùng
+            .catch(() => axiosInstance.get("/users")),
         ]);
+      }
 
       // Xử lý dữ liệu từ các API
       let statsData: DashboardStats = {
@@ -54,8 +66,8 @@ const Dashboard = () => {
       };
 
       // Nếu có API statistics/overview, sử dụng dữ liệu từ đó
-      if (statsResponse.status === "fulfilled" && statsResponse.value?.data) {
-        const overviewData = statsResponse.value.data;
+      if (statsResponse && statsResponse.data) {
+        const overviewData = statsResponse.data;
         statsData = {
           totalRevenue: overviewData.totalRevenue || 0,
           totalOrders: overviewData.totalOrders || 0,
@@ -68,8 +80,8 @@ const Dashboard = () => {
         };
       }
 
-      // Xử lý Orders
-      if (ordersResponse.status === "fulfilled" && ordersResponse.value?.data) {
+      // Xử lý Orders (chỉ nếu không có API tổng quan)
+      if (!statsResponse && ordersResponse?.status === "fulfilled" && ordersResponse.value?.data) {
         const orders = ordersResponse.value.data || [];
 
         // Normalize orders
@@ -157,8 +169,8 @@ const Dashboard = () => {
         }
       }
 
-      // Xử lý Books
-      if (booksResponse.status === "fulfilled" && booksResponse.value?.data) {
+      // Xử lý Books (chỉ nếu không có API tổng quan)
+      if (!statsResponse && booksResponse?.status === "fulfilled" && booksResponse.value?.data) {
         const books = booksResponse.value.data || [];
 
         if (!statsData.totalBooks) {
@@ -189,8 +201,8 @@ const Dashboard = () => {
         }
       }
 
-      // Xử lý Users
-      if (usersResponse.status === "fulfilled" && usersResponse.value?.data) {
+      // Xử lý Users (chỉ nếu không có API tổng quan)
+      if (!statsResponse && usersResponse?.status === "fulfilled" && usersResponse.value?.data) {
         const users = usersResponse.value.data || [];
         if (!statsData.totalUsers) {
           statsData.totalUsers = users.length;

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useCart } from "../../context/CartContext";
 
@@ -10,9 +10,16 @@ interface CartTabProps {
 
 const CartTab: React.FC<CartTabProps> = ({ isActive = false }) => {
   const router = useRouter();
-  const { cartCount } = useCart();
+  const { cartCount, refreshCart } = useCart();
   const iconColor = isActive ? "#C92127" : "#999";
   const textColor = isActive ? "#C92127" : "#999";
+
+  // Chỉ fetch cart khi tab được active (user đang xem tab này)
+  useEffect(() => {
+    if (isActive) {
+      refreshCart();
+    }
+  }, [isActive, refreshCart]);
 
   // Debug log
   console.log("🛒 CartTab - count:", cartCount);

@@ -32,6 +32,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = await AsyncStorage.getItem("auth_token");
       if (!token) {
         setCartCount(0);
+        setLoading(false);
         return;
       }
       
@@ -59,10 +60,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Fetch cart count khi provider mount
-  useEffect(() => {
-    refreshCart();
-  }, [refreshCart]);
+  // KHÔNG tự động fetch khi mount để tránh gọi API không cần thiết
+  // Chỉ fetch khi component nào đó gọi refreshCart() explicitly
+  // useEffect(() => {
+  //   refreshCart();
+  // }, [refreshCart]);
 
   return (
     <CartContext.Provider value={{ cartCount, refreshCart, loading }}>
