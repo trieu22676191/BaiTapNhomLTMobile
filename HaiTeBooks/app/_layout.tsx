@@ -49,74 +49,81 @@ export default function RootLayout() {
       <ThemeProvider>
         <CartProvider>
           <View style={styles.container}>
-          <Stack
-            screenOptions={{
-              header: () => <Header />,
-              animation: "none",
-              animationTypeForReplace: "pop",
-              animationDuration: 0,
-              presentation: "card",
-            }}
-          >
-            <Stack.Screen
-              name="account"
-              options={{
-                headerShown: false,
+            <Stack
+              screenOptions={{
+                header: () => <Header />,
                 animation: "none",
+                animationTypeForReplace: "pop",
+                animationDuration: 0,
+                presentation: "card",
               }}
-            />
-            <Stack.Screen
-              name="account/register"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-            <Stack.Screen
-              name="mobile/page/carts/Cart"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-            <Stack.Screen
-              name="mobile/page/suggestions/Suggestion"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-            <Stack.Screen
-              name="mobile/page/notifications/Notification"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-            <Stack.Screen
-              name="mobile/page/checkout/Checkout"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-            <Stack.Screen
-              name="mobile/page/accounts/MyOrder"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-            <Stack.Screen
-              name="mobile/page/homes/CategoryBooks"
-              options={{
-                headerShown: false,
-                animation: "none",
-              }}
-            />
-          </Stack>
-          <BotTabs />
-        </View>
+            >
+              <Stack.Screen
+                name="account"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="account/register"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/carts/Cart"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/suggestions/Suggestion"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/notifications/Notification"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/checkout/Checkout"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/accounts/MyOrder"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/homes/CategoryBooks"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+              <Stack.Screen
+                name="mobile/page/accounts/Voucher"
+                options={{
+                  headerShown: false,
+                  animation: "none",
+                }}
+              />
+            </Stack>
+            <BotTabs />
+          </View>
         </CartProvider>
       </ThemeProvider>
     </SafeAreaProvider>

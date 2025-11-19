@@ -45,6 +45,7 @@ const Account: React.FC = () => {
   const [showAppSettings, setShowAppSettings] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [voucherCount, setVoucherCount] = useState(0);
   const params = useLocalSearchParams<{ next?: string; bookId?: string }>();
 
   // Debug: Log state changes
@@ -92,6 +93,58 @@ const Account: React.FC = () => {
     }
   }, [user?.id]);
 
+  const fetchVoucherCount = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) {
+        setVoucherCount(0);
+        return;
+      }
+
+      setAuthToken(token);
+      const response = await axiosInstance.get("/promotions");
+      const rawData = response.data || [];
+
+      const activeCount = rawData
+        .map((promo: any) => ({
+          id: promo.id,
+          name: promo.name,
+          discountPercent: promo.discountPercent,
+          startDate: promo.startDate,
+          endDate: promo.endDate,
+          quantity: promo.quantity,
+          isActive:
+            promo.isActive !== undefined
+              ? promo.isActive
+              : promo.active !== undefined
+              ? promo.active
+              : true,
+          approvedByUserId: promo.approvedByUserId || promo.approvedBy,
+          status: promo.status,
+        }))
+        .filter((promo: any) => {
+          const isApproved =
+            promo.approvedByUserId != null || promo.status === "approved";
+          const isActive = promo.isActive && promo.status !== "deactivated";
+          const now = new Date();
+          const startDate = new Date(promo.startDate);
+          const endDate = new Date(promo.endDate);
+          const isStarted = startDate <= now;
+          const isNotExpired = endDate >= now;
+          const hasQuantity = promo.quantity > 0;
+
+          return (
+            isApproved && isActive && isStarted && isNotExpired && hasQuantity
+          );
+        }).length;
+
+      setVoucherCount(activeCount);
+    } catch (error) {
+      console.error("Error fetching voucher count:", error);
+      setVoucherCount(0);
+    }
+  }, []);
+
   // Re-check session và refresh orders mỗi khi focus vào Account tab
   useFocusEffect(
     useCallback(() => {
@@ -133,7 +186,8 @@ const Account: React.FC = () => {
         }
       };
       checkSession();
-    }, [])
+      fetchVoucherCount();
+    }, [fetchVoucherCount])
   );
 
   // Fetch orders khi user thay đổi
@@ -142,6 +196,10 @@ const Account: React.FC = () => {
       fetchOrders();
     }
   }, [user?.id, fetchOrders]);
+
+  useEffect(() => {
+    fetchVoucherCount();
+  }, [fetchVoucherCount]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -369,14 +427,14 @@ const Account: React.FC = () => {
             icon="receipt"
             iconColor="#10B981"
             label="Ví voucher"
-            badge={0} //dựa vào số lượng voucher trong database
+            badge={voucherCount > 0 ? voucherCount : undefined}
+            onPress={() => router.push("/mobile/page/accounts/Voucher")}
           />
           <MenuItem
             icon="heart"
             iconColor="#C92127"
             label="Sản phẩm yêu thích"
           />
-          <MenuItem icon="library" iconColor="#3B82F6" label="Sách theo bộ" />
           <MenuItem
             icon="help-circle"
             iconColor="#10B981"
