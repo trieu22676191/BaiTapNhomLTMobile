@@ -47,6 +47,8 @@ const CARD_WIDTH = (SCREEN_WIDTH - 24 - 8) / 2; // 2 columns with padding and ga
 const formatPrice = (v: number) =>
   new Intl.NumberFormat("vi-VN").format(v) + " ₫";
 
+const BOOKS_API_URL = "https://haitebooks-backend.onrender.com/api/books";
+
 const CategoryBooks: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -77,7 +79,7 @@ const CategoryBooks: React.FC = () => {
     const source = axios.CancelToken.source();
     try {
       // Fetch all books
-      const booksResp = await axiosInstance.get<ApiBook[]>("/books", {
+      const booksResp = await axios.get<ApiBook[]>(BOOKS_API_URL, {
         timeout: 10000,
         cancelToken: source.token,
       });
