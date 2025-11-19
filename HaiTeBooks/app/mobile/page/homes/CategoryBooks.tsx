@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import axios from "axios";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,17 +8,19 @@ import {
   FlatList,
   Image,
   Platform,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import axiosInstance from "../../config/axiosConfig";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import BookDetail from "../../components/home/BookDetail";
 import BuyNowButton from "../../components/home/BuyNowButton";
+import axiosInstance from "../../config/axiosConfig";
 
 type ApiBook = {
   id: number;
@@ -48,14 +50,22 @@ const formatPrice = (v: number) =>
 const CategoryBooks: React.FC = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{ category?: string; search?: string }>();
   const categoryName = params.category || "Tất cả";
+  const searchParam = params.search || "";
 
   const [books, setBooks] = useState<BookWithReviews[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchText, setSearchText] = useState<string>("");
+  const [searchText, setSearchText] = useState<string>(searchParam);
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
+
+  // Update searchText khi search param thay đổi
+  useEffect(() => {
+    if (searchParam) {
+      setSearchText(searchParam);
+    }
+  }, [searchParam]);
 
   useEffect(() => {
     fetchBooks();
@@ -172,11 +182,7 @@ const CategoryBooks: React.FC = () => {
           onPress={() => setSelectedBookId(item.id)}
         >
           <View style={styles.imageContainer}>
-            <Image
-              source={{ uri }}
-              style={styles.image}
-              resizeMode="cover"
-            />
+            <Image source={{ uri }} style={styles.image} resizeMode="cover" />
             {discount > 0 && (
               <View style={styles.discountBadge}>
                 <Text style={styles.discountText}>-{discount}%</Text>
@@ -233,9 +239,7 @@ const CategoryBooks: React.FC = () => {
             </View>
 
             {item.soldCount !== undefined && item.soldCount > 0 && (
-              <Text style={styles.soldCount}>
-                Đã bán {item.soldCount}
-              </Text>
+              <Text style={styles.soldCount}>Đã bán {item.soldCount}</Text>
             )}
 
             <View style={styles.buttonContainer}>
@@ -307,10 +311,7 @@ const CategoryBooks: React.FC = () => {
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={fetchBooks}
-          >
+          <TouchableOpacity style={styles.retryButton} onPress={fetchBooks}>
             <Text style={styles.retryText}>Thử lại</Text>
           </TouchableOpacity>
         </View>
@@ -581,4 +582,3 @@ const styles = StyleSheet.create({
 });
 
 export default CategoryBooks;
-

@@ -1,4 +1,5 @@
-import React from "react";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import { Dimensions, Image, Platform, StyleSheet, View } from "react-native";
 
 import {
@@ -16,6 +17,8 @@ const { width: SCREEN_W } = Dimensions.get("window");
 
 const Header: React.FC<HeaderProps> = () => {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [searchText, setSearchText] = useState("");
 
   const ROW_HEIGHT = 44;
   const LOGO_HEIGHT = 26;
@@ -25,6 +28,21 @@ const Header: React.FC<HeaderProps> = () => {
   const handleSelectCategory = (category: string) => {
     console.log("Selected category:", category);
     // Có thể thêm logic filter books theo category ở đây
+  };
+
+  const handleSearchSubmit = () => {
+    if (searchText.trim()) {
+      // Navigate to CategoryBooks với search query
+      router.push({
+        pathname: "/mobile/page/homes/CategoryBooks",
+        params: {
+          category: "Tất cả",
+          search: searchText.trim(),
+        },
+      });
+      // Reset search text sau khi submit
+      setSearchText("");
+    }
   };
 
   return (
@@ -38,7 +56,12 @@ const Header: React.FC<HeaderProps> = () => {
 
       <View style={[styles.actionRow, { height: ROW_HEIGHT }]}>
         <MenuButton onSelectCategory={handleSelectCategory} />
-        <Search onSubmit={() => console.log("Search submit")} />
+        <Search
+          value={searchText}
+          onChangeText={setSearchText}
+          onSubmit={handleSearchSubmit}
+          placeholder="Tìm kiếm sách, tác giả, thể loại..."
+        />
         <ScanButton onPress={() => console.log("Scan pressed from Header")} />
       </View>
     </SafeAreaView>
