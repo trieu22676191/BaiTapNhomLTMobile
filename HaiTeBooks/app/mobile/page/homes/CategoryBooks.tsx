@@ -20,6 +20,7 @@ import {
 } from "react-native-safe-area-context";
 import BookDetail from "../../components/home/BookDetail";
 import BuyNowButton from "../../components/home/BuyNowButton";
+import SimilarBooksModal from "../../components/home/SimilarBooksModal";
 import axiosInstance from "../../config/axiosConfig";
 
 type ApiBook = {
@@ -59,6 +60,9 @@ const CategoryBooks: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState<string>(searchParam);
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
+  const [showSimilarBooks, setShowSimilarBooks] = useState(false);
+  const [similarBookId, setSimilarBookId] = useState<number | null>(null);
+  const [similarBookTitle, setSimilarBookTitle] = useState<string>("");
 
   // Update searchText khi search param thay đổi
   useEffect(() => {
@@ -218,12 +222,26 @@ const CategoryBooks: React.FC = () => {
               <Text style={styles.soldCount}>Đã bán {item.soldCount}</Text>
             )}
 
-            <View style={styles.buttonContainer}>
-              <BuyNowButton
-                bookId={item.id}
-                bookTitle={item.title}
-                stock={item.stock}
-              />
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.similarButton}
+                activeOpacity={0.8}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSimilarBookId(item.id);
+                  setSimilarBookTitle(item.title);
+                  setShowSimilarBooks(true);
+                }}
+              >
+                <Ionicons name="sparkles" size={16} color="#C92127" />
+              </TouchableOpacity>
+              <View style={styles.buyWrap}>
+                <BuyNowButton
+                  bookId={item.id}
+                  bookTitle={item.title}
+                  stock={item.stock}
+                />
+              </View>
             </View>
           </View>
         </TouchableOpacity>
@@ -233,6 +251,14 @@ const CategoryBooks: React.FC = () => {
             visible={selectedBookId === item.id}
             bookId={item.id}
             onClose={() => setSelectedBookId(null)}
+            onShowSimilarBooks={(bookId, bookTitle) => {
+              setSimilarBookId(bookId);
+              setSimilarBookTitle(bookTitle || "");
+              setSelectedBookId(null);
+              setTimeout(() => {
+                setShowSimilarBooks(true);
+              }, 300);
+            }}
           />
         )}
       </>
@@ -241,7 +267,7 @@ const CategoryBooks: React.FC = () => {
 
   return (
     <SafeAreaView
-      style={[styles.container, { paddingTop: insets.top }]}
+      style={styles.container}
       edges={["top"]}
     >
       {/* Header */}
@@ -316,6 +342,17 @@ const CategoryBooks: React.FC = () => {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <SimilarBooksModal
+        visible={showSimilarBooks}
+        bookId={similarBookId}
+        bookTitle={similarBookTitle}
+        onClose={() => {
+          setShowSimilarBooks(false);
+          setSimilarBookId(null);
+          setSimilarBookTitle("");
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -330,7 +367,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#C92127",
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingTop: 16,
+    paddingBottom: 12,
     gap: 8,
     minHeight: 56,
     ...Platform.select({
@@ -567,8 +605,24 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     marginBottom: 8,
   },
-  buttonContainer: {
+  buttonRow: {
+    flexDirection: "row",
+    gap: 8,
     marginTop: 8,
+    alignItems: "center",
+  },
+  similarButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C92127",
+    backgroundColor: "#FFFFFF",
+  },
+  buyWrap: {
+    flex: 1,
   },
 });
 
