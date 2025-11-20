@@ -15,12 +15,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
 import BuyNowButton from "./BuyNowButton";
+import SimilarBooksModal from "./SimilarBooksModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface BookDetailProps {
   visible: boolean;
   bookId: number | null;
   onClose: () => void;
+  onShowSimilarBooks?: (bookId: number, bookTitle?: string) => void;
 }
 
 type BookDetail = {
@@ -57,6 +59,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
   visible,
   bookId,
   onClose,
+  onShowSimilarBooks,
 }) => {
   const insets = useSafeAreaInsets();
   const [book, setBook] = useState<BookDetail | null>(null);
@@ -73,7 +76,13 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const [authUserId, setAuthUserId] = useState<number | null>(null);
   const [authUserName, setAuthUserName] = useState<string>("");
   const [isEditingReview, setIsEditingReview] = useState<boolean>(false);
+  const [showSimilarBooks, setShowSimilarBooks] = useState<boolean>(false);
   const authUserIdRef = React.useRef<number | null>(null);
+  
+  // Debug: Log khi showSimilarBooks thay đổi
+  React.useEffect(() => {
+    console.log("🔍 BookDetail - showSimilarBooks changed:", showSimilarBooks);
+  }, [showSimilarBooks]);
 
   useEffect(() => {
     if (!visible) return;
@@ -367,9 +376,8 @@ const BookDetail: React.FC<BookDetailProps> = ({
     }
   };
 
-  if (!visible || !bookId) return null;
-
   return (
+    <>
     <Modal
       visible={visible}
       transparent
@@ -651,18 +659,37 @@ const BookDetail: React.FC<BookDetailProps> = ({
                   styles.footer,
                   { paddingBottom: Math.max(insets.bottom, 16) },
                 ]}
+                pointerEvents="box-none"
               >
-                <BuyNowButton
-                  bookId={book.id}
-                  bookTitle={book.title}
-                  stock={book.stock}
-                />
+                <View style={styles.footerButtons} pointerEvents="auto">
+                  <View style={styles.buyButtonContainer}>
+                    <BuyNowButton
+                      bookId={book.id}
+                      bookTitle={book.title}
+                      stock={book.stock}
+                    />
+                  </View>
+                </View>
               </View>
             </>
           ) : null}
         </View>
       </View>
     </Modal>
+
+    {/* SimilarBooksModal - only render if no callback provided (fallback) */}
+    {!onShowSimilarBooks && (
+      <SimilarBooksModal
+        visible={showSimilarBooks}
+        bookId={bookId}
+        bookTitle={book?.title}
+        onClose={() => {
+          console.log("🔍 Closing SimilarBooksModal");
+          setShowSimilarBooks(false);
+        }}
+      />
+    )}
+    </>
   );
 };
 
@@ -674,6 +701,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+    position: "relative",
   },
   header: {
     flexDirection: "row",
@@ -1057,11 +1085,25 @@ const styles = StyleSheet.create({
     color: "#374151",
   },
   footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
     backgroundColor: "#FFFFFF",
+    zIndex: 10,
+    elevation: 10,
+  },
+  footerButtons: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+  },
+  buyButtonContainer: {
+    flex: 1,
   },
   starRow: {
     flexDirection: "row",

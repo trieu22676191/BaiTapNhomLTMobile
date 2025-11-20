@@ -14,6 +14,7 @@ import {
 import axiosInstance from "../../config/axiosConfig";
 import BookDetail from "./BookDetail";
 import BuyNowButton from "./BuyNowButton";
+import SimilarBooksModal from "./SimilarBooksModal";
 
 type ApiBook = {
   id: number;
@@ -41,7 +42,20 @@ const formatPrice = (v: number) =>
 
 const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
   const [showBookDetail, setShowBookDetail] = useState(false);
+  const [showSimilarBooks, setShowSimilarBooks] = useState(false);
+  const [similarBookId, setSimilarBookId] = useState<number | null>(null);
+  const [similarBookTitle, setSimilarBookTitle] = useState<string>("");
   const uri = item.imageUrl || "https://via.placeholder.com/300x400";
+
+  const handleShowSimilarBooks = (bookId: number, bookTitle?: string) => {
+    console.log("🔍 Card: handleShowSimilarBooks called", { bookId, bookTitle });
+    setSimilarBookId(bookId);
+    setSimilarBookTitle(bookTitle || "");
+    setShowBookDetail(false); // Đóng BookDetail trước
+    setTimeout(() => {
+      setShowSimilarBooks(true);
+    }, 300); // Đợi một chút để BookDetail đóng xong
+  };
 
   return (
     <>
@@ -101,19 +115,33 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
             <Text style={styles.stock}>Còn {item.stock}</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.buyWrap}
-            activeOpacity={1}
-            onPress={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <BuyNowButton
-              bookId={item.id}
-              bookTitle={item.title}
-              stock={item.stock}
-            />
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.similarButton}
+              activeOpacity={0.8}
+              onPress={(e) => {
+                e.stopPropagation();
+                setSimilarBookId(item.id);
+                setSimilarBookTitle(item.title);
+                setShowSimilarBooks(true);
+              }}
+            >
+              <Ionicons name="sparkles" size={20} color="#C92127" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.buyWrap}
+              activeOpacity={1}
+              onPress={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              <BuyNowButton
+                bookId={item.id}
+                bookTitle={item.title}
+                stock={item.stock}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
 
@@ -121,6 +149,25 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
         visible={showBookDetail}
         bookId={item.id}
         onClose={() => setShowBookDetail(false)}
+        onShowSimilarBooks={(bookId, bookTitle) => {
+          console.log("🔍 ProductCard: onShowSimilarBooks called", { bookId, bookTitle });
+          setSimilarBookId(bookId);
+          setSimilarBookTitle(bookTitle || "");
+          setShowBookDetail(false); // Đóng BookDetail trước
+          setTimeout(() => {
+            setShowSimilarBooks(true); // Mở SimilarBooksModal sau
+          }, 300);
+        }}
+      />
+      <SimilarBooksModal
+        visible={showSimilarBooks}
+        bookId={similarBookId}
+        bookTitle={similarBookTitle}
+        onClose={() => {
+          setShowSimilarBooks(false);
+          setSimilarBookId(null);
+          setSimilarBookTitle("");
+        }}
       />
     </>
   );
@@ -401,8 +448,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
   },
-  buyWrap: {
+  buttonRow: {
+    flexDirection: "row",
+    gap: 8,
     marginTop: 8,
+    alignItems: "center",
+  },
+  similarButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#C92127",
+    backgroundColor: "#FFFFFF",
+  },
+  buyWrap: {
+    flex: 1,
   },
   error: { color: "#e74c3c", textAlign: "center", marginTop: 12 },
 });

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -29,83 +29,19 @@ type Book = {
   reviewCount?: number;
 };
 
-type TabType = "search" | "recommend";
-
 const formatPrice = (v: number) =>
   new Intl.NumberFormat("vi-VN").format(v) + " đ";
 
 const Suggestion: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>("search");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<Book[]>([]);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  const [allBooks, setAllBooks] = useState<Book[]>([]);
-  const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
-  const [recommendations, setRecommendations] = useState<Book[]>([]);
-  const [recommendLoading, setRecommendLoading] = useState<boolean>(false);
-  const [recommendError, setRecommendError] = useState<string | null>(null);
-
   const [showBookDetail, setShowBookDetail] = useState(false);
   const [selectedBookDetailId, setSelectedBookDetailId] = useState<
     number | null
   >(null);
-
-  // Load danh sách sách để chọn
-  useEffect(() => {
-    const fetchAllBooks = async () => {
-      try {
-        const response = await axiosInstance.get<Book[]>("/books");
-        const books = response.data || [];
-
-        // Fetch reviews cho mỗi sách
-        const booksWithReviews = await Promise.all(
-          books.map(async (book) => {
-            try {
-              const reviewsResp = await axiosInstance.get<any[]>(
-                `/reviews/book/${book.id}`
-              );
-              const reviews = Array.isArray(reviewsResp.data)
-                ? reviewsResp.data
-                : [];
-
-              const approvedReviews = reviews.filter((r: any) =>
-                r?.status ? r.status === "approved" : true
-              );
-
-              const reviewCount = approvedReviews.length;
-              const averageRating =
-                reviewCount > 0
-                  ? approvedReviews.reduce(
-                      (acc, curr) => acc + Number(curr.rating || 0),
-                      0
-                    ) / reviewCount
-                  : 0;
-
-              return {
-                ...book,
-                averageRating,
-                reviewCount,
-              };
-            } catch (reviewErr) {
-              // Nếu không fetch được reviews, set default
-              return {
-                ...book,
-                averageRating: 0,
-                reviewCount: 0,
-              };
-            }
-          })
-        );
-
-        setAllBooks(booksWithReviews);
-      } catch (err) {
-        console.error("Lỗi khi tải danh sách sách:", err);
-      }
-    };
-    fetchAllBooks();
-  }, []);
 
   // Tìm kiếm semantic với fallback về tìm kiếm thông thường
   const handleSearch = async () => {
@@ -156,36 +92,11 @@ const Suggestion: React.FC = () => {
           aiError?.response?.status === 404 ||
           aiError?.response?.status === 500
         ) {
-          console.log("🔄 Chuyển sang tìm kiếm thông thường...");
-
-          // Fallback: Tìm kiếm thông thường trong danh sách sách
-          const filteredBooks = allBooks.filter((book) => {
-            const searchLower = query.toLowerCase();
-            return (
-              book.title?.toLowerCase().includes(searchLower) ||
-              book.author?.toLowerCase().includes(searchLower) ||
-              book.categoryName?.toLowerCase().includes(searchLower) ||
-              book.description?.toLowerCase().includes(searchLower)
-            );
-          });
-
-          if (filteredBooks.length > 0) {
-            // Enrich books với reviews
-            const booksWithReviews = await Promise.all(
-              filteredBooks.map((book) => enrichBookWithReviews(book))
-            );
-            setSearchResults(booksWithReviews);
-            setSearchError(
-              "⚠️ Tìm kiếm AI chưa sẵn sàng. Đang dùng tìm kiếm thông thường."
-            );
-            return;
-          } else {
-            setSearchError(
-              "Không tìm thấy kết quả nào. Có thể embeddings chưa được generate. Vui lòng thử từ khóa khác hoặc liên hệ admin."
-            );
-            setSearchResults([]);
-            return;
-          }
+          setSearchError(
+            "Tìm kiếm AI chưa sẵn sàng. Có thể embeddings chưa được generate. Vui lòng thử lại sau hoặc liên hệ admin."
+          );
+          setSearchResults([]);
+          return;
         }
 
         // Nếu lỗi khác, throw để xử lý ở catch bên ngoài
@@ -218,67 +129,6 @@ const Suggestion: React.FC = () => {
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
-    }
-  };
-
-  // Gợi ý sách tương tự
-  const handleRecommend = async (bookId: number) => {
-    setSelectedBookId(bookId);
-    setRecommendLoading(true);
-    setRecommendError(null);
-    try {
-      console.log("🎯 Bắt đầu gợi ý sách tương tự cho bookId:", bookId);
-
-      const response = await axiosInstance.get<Book[]>(
-        `/ai/recommend/${bookId}`,
-        {
-          params: {
-            limit: 10,
-          },
-          timeout: 15000,
-        }
-      );
-
-      console.log(
-        "✅ Gợi ý thành công, số kết quả:",
-        response.data?.length || 0
-      );
-
-      if (response.data && response.data.length > 0) {
-        // Enrich books với reviews
-        const booksWithReviews = await Promise.all(
-          response.data.map((book) => enrichBookWithReviews(book))
-        );
-        setRecommendations(booksWithReviews);
-      } else {
-        setRecommendations([]);
-      }
-      if (!response.data || response.data.length === 0) {
-        setRecommendError(
-          "Không tìm thấy sách tương tự. Có thể embeddings chưa được generate cho sách này hoặc không có sách tương tự đủ độ tương đồng."
-        );
-      }
-    } catch (err: any) {
-      console.error("❌ Lỗi khi gợi ý:", err);
-      const status = err?.response?.status;
-      const apiMessage = err?.response?.data?.message || err?.message;
-
-      let errorMessage = "Lỗi khi gợi ý sách. Vui lòng thử lại.";
-
-      if (status === 404) {
-        errorMessage =
-          "Endpoint AI recommend chưa được cấu hình. Vui lòng liên hệ admin.";
-      } else if (status === 500) {
-        errorMessage =
-          "Lỗi server. Có thể embeddings chưa được generate. Vui lòng thử lại sau.";
-      } else if (apiMessage) {
-        errorMessage = apiMessage;
-      }
-
-      setRecommendError(errorMessage);
-      setRecommendations([]);
-    } finally {
-      setRecommendLoading(false);
     }
   };
 
@@ -377,52 +227,8 @@ const Suggestion: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🤖 AI Gợi ý</Text>
-        <Text style={styles.headerSubtitle}>
-          Tìm kiếm thông minh & Gợi ý sách tương tự
-        </Text>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "search" && styles.tabActive]}
-          onPress={() => setActiveTab("search")}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="search"
-            size={20}
-            color={activeTab === "search" ? "#FFFFFF" : "#6B7280"}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "search" && styles.tabTextActive,
-            ]}
-          >
-            Tìm kiếm
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "recommend" && styles.tabActive]}
-          onPress={() => setActiveTab("recommend")}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="sparkles"
-            size={20}
-            color={activeTab === "recommend" ? "#FFFFFF" : "#6B7280"}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "recommend" && styles.tabTextActive,
-            ]}
-          >
-            Gợi ý
-          </Text>
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>🤖 AI Tìm kiếm</Text>
+        <Text style={styles.headerSubtitle}>Tìm kiếm thông minh với AI</Text>
       </View>
 
       <ScrollView
@@ -430,156 +236,68 @@ const Suggestion: React.FC = () => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab === "search" ? (
-          // Tab Tìm kiếm
-          <View style={styles.searchSection}>
-            <View style={styles.searchInputContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Nhập từ khóa (ví dụ: tài chính, tiểu thuyết, kỹ năng sống...)"
-                placeholderTextColor="#9CA3AF"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearch}
-                returnKeyType="search"
-              />
-              <TouchableOpacity
-                style={styles.searchButton}
-                onPress={handleSearch}
-                activeOpacity={0.8}
-                disabled={searchLoading}
-              >
-                {searchLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Ionicons name="search" size={20} color="#FFFFFF" />
-                )}
-              </TouchableOpacity>
+        <View style={styles.searchSection}>
+          <View style={styles.searchInputContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Nhập từ khóa (ví dụ: tài chính, tiểu thuyết, kỹ năng sống...)"
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+            />
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={handleSearch}
+              activeOpacity={0.8}
+              disabled={searchLoading}
+            >
+              {searchLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Ionicons name="search" size={20} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {searchError && (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={20} color="#EF4444" />
+              <Text style={styles.errorText}>{searchError}</Text>
             </View>
+          )}
 
-            {searchError && (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#EF4444" />
-                <Text style={styles.errorText}>{searchError}</Text>
-              </View>
-            )}
-
-            {searchLoading && searchResults.length === 0 ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#C92127" />
-                <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
-              </View>
-            ) : searchResults.length > 0 ? (
-              <View style={styles.resultsContainer}>
-                <Text style={styles.resultsTitle}>
-                  Tìm thấy {searchResults.length} kết quả
-                </Text>
-                <FlatList
-                  data={searchResults}
-                  renderItem={({ item }) => renderBookCard(item)}
-                  keyExtractor={(item) => item.id.toString()}
-                  numColumns={2}
-                  columnWrapperStyle={styles.row}
-                  scrollEnabled={false}
-                />
-              </View>
-            ) : (
-              !searchLoading && (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="search-outline" size={64} color="#D1D5DB" />
-                  <Text style={styles.emptyText}>
-                    Nhập từ khóa và nhấn tìm kiếm để bắt đầu
-                  </Text>
-                </View>
-              )
-            )}
-          </View>
-        ) : (
-          // Tab Gợi ý
-          <View style={styles.recommendSection}>
-            <Text style={styles.sectionTitle}>
-              Chọn một cuốn sách để xem gợi ý tương tự
-            </Text>
-
-            {recommendError && (
-              <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={20} color="#EF4444" />
-                <Text style={styles.errorText}>{recommendError}</Text>
-              </View>
-            )}
-
-            {recommendLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#C92127" />
-                <Text style={styles.loadingText}>
-                  Đang tìm sách tương tự...
+          {searchLoading && searchResults.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#C92127" />
+              <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
+            </View>
+          ) : searchResults.length > 0 ? (
+            <View style={styles.resultsContainer}>
+              <Text style={styles.resultsTitle}>
+                Tìm thấy {searchResults.length} kết quả
+              </Text>
+              <FlatList
+                data={searchResults}
+                renderItem={({ item }) => renderBookCard(item)}
+                keyExtractor={(item) => item.id.toString()}
+                numColumns={2}
+                columnWrapperStyle={styles.row}
+                scrollEnabled={false}
+              />
+            </View>
+          ) : (
+            !searchLoading && (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={64} color="#D1D5DB" />
+                <Text style={styles.emptyText}>
+                  Nhập từ khóa và nhấn tìm kiếm để bắt đầu
                 </Text>
               </View>
-            ) : recommendations.length > 0 ? (
-              <View style={styles.resultsContainer}>
-                <Text style={styles.resultsTitle}>
-                  Sách tương tự với "
-                  {allBooks.find((b) => b.id === selectedBookId)?.title}"
-                </Text>
-                <FlatList
-                  data={recommendations}
-                  renderItem={({ item }) => renderBookCard(item)}
-                  keyExtractor={(item) => item.id.toString()}
-                  numColumns={2}
-                  columnWrapperStyle={styles.row}
-                  scrollEnabled={false}
-                />
-              </View>
-            ) : (
-              <View style={styles.bookListContainer}>
-                <FlatList
-                  data={allBooks}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={[
-                        styles.bookListItem,
-                        selectedBookId === item.id &&
-                          styles.bookListItemSelected,
-                      ]}
-                      onPress={() => handleRecommend(item.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Image
-                        source={{
-                          uri:
-                            item.imageUrl ||
-                            "https://via.placeholder.com/300x400",
-                        }}
-                        style={styles.bookListItemImage}
-                        resizeMode="cover"
-                      />
-                      <View style={styles.bookListItemInfo}>
-                        <Text
-                          style={styles.bookListItemTitle}
-                          numberOfLines={2}
-                        >
-                          {item.title}
-                        </Text>
-                        <Text style={styles.bookListItemPrice}>
-                          {formatPrice(item.price)}
-                        </Text>
-                      </View>
-                      {selectedBookId === item.id && (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={24}
-                          color="#C92127"
-                        />
-                      )}
-                    </TouchableOpacity>
-                  )}
-                  keyExtractor={(item) => item.id.toString()}
-                  scrollEnabled={false}
-                />
-              </View>
-            )}
-          </View>
-        )}
+            )
+          )}
+        </View>
       </ScrollView>
 
       <BookDetail
@@ -615,35 +333,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#FFFFFF",
     opacity: 0.9,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-  },
-  tabActive: {
-    backgroundColor: "#C92127",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6B7280",
-  },
-  tabTextActive: {
-    color: "#FFFFFF",
   },
   content: {
     flex: 1,
@@ -693,9 +382,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     minWidth: 48,
-  },
-  recommendSection: {
-    gap: 16,
   },
   sectionTitle: {
     fontSize: 15,
@@ -825,44 +511,6 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     textAlign: "center",
     paddingHorizontal: 32,
-  },
-  bookListContainer: {
-    gap: 8,
-  },
-  bookListItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    gap: 12,
-  },
-  bookListItemSelected: {
-    borderColor: "#C92127",
-    borderWidth: 2,
-    backgroundColor: "#FEF2F2",
-  },
-  bookListItemImage: {
-    width: 60,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-  },
-  bookListItemInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  bookListItemTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  bookListItemPrice: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#C92127",
   },
 });
 

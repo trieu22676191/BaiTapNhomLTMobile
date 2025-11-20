@@ -135,15 +135,16 @@ const BuyNowButton: React.FC<BuyNowButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    marginTop: 10,
+    marginTop: 0,
     borderWidth: 1,
     borderColor: "#C92127",
     borderRadius: 8,
     paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    minHeight: 36,
+    minHeight: 44,
   },
   buttonPressed: {
     backgroundColor: "#FFA500",
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#C92127",
     fontWeight: "700",
-    fontSize: 13,
+    fontSize: 12,
   },
   buttonTextPressed: {
     color: "#FFFFFF",
