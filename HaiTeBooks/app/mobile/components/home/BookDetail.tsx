@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,11 +13,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
 import BuyNowButton from "./BuyNowButton";
 import SimilarBooksModal from "./SimilarBooksModal";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface BookDetailProps {
   visible: boolean;
@@ -78,7 +81,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const [isEditingReview, setIsEditingReview] = useState<boolean>(false);
   const [showSimilarBooks, setShowSimilarBooks] = useState<boolean>(false);
   const authUserIdRef = React.useRef<number | null>(null);
-  
+
   // Debug: Log khi showSimilarBooks thay đổi
   React.useEffect(() => {
     console.log("🔍 BookDetail - showSimilarBooks changed:", showSimilarBooks);
@@ -86,9 +89,9 @@ const BookDetail: React.FC<BookDetailProps> = ({
 
   useEffect(() => {
     if (!visible) return;
-    
+
     let isMounted = true;
-    
+
     const loadAuthUser = async () => {
       try {
         // Kiểm tra token trước
@@ -110,17 +113,21 @@ const BookDetail: React.FC<BookDetailProps> = ({
           const userResponse = await axiosInstance.get("/users/me");
           const apiUser = userResponse.data;
           const userId = apiUser?.id || apiUser?.userId;
-          
+
           if (userId && isMounted) {
-            const numUserId = typeof userId === "number" ? userId : Number(userId);
+            const numUserId =
+              typeof userId === "number" ? userId : Number(userId);
             // Chỉ set state nếu giá trị thay đổi
             if (authUserIdRef.current !== numUserId) {
               setAuthUserId(numUserId);
               setAuthUserName(
-                apiUser?.fullName || apiUser?.full_name || apiUser?.username || ""
+                apiUser?.fullName ||
+                  apiUser?.full_name ||
+                  apiUser?.username ||
+                  ""
               );
               authUserIdRef.current = numUserId;
-              
+
               // Cập nhật AsyncStorage với user đầy đủ thông tin
               const userToSave = {
                 id: userId,
@@ -131,7 +138,10 @@ const BookDetail: React.FC<BookDetailProps> = ({
                 address: apiUser?.address || "",
                 role_id: apiUser?.role || apiUser?.role_id || "user",
               };
-              await AsyncStorage.setItem("auth_user", JSON.stringify(userToSave));
+              await AsyncStorage.setItem(
+                "auth_user",
+                JSON.stringify(userToSave)
+              );
             }
             return;
           }
@@ -143,10 +153,11 @@ const BookDetail: React.FC<BookDetailProps> = ({
         const stored = await AsyncStorage.getItem("auth_user");
         if (stored && isMounted) {
           const parsed = JSON.parse(stored);
-          
+
           // Thử nhiều cách để lấy userId
-          let parsedId = parsed?.id ?? parsed?.userId ?? parsed?.user_id ?? null;
-          
+          let parsedId =
+            parsed?.id ?? parsed?.userId ?? parsed?.user_id ?? null;
+
           // Nếu id là undefined hoặc null, không set userId
           if (parsedId === undefined || parsedId === null) {
             if (authUserIdRef.current !== null) {
@@ -156,10 +167,11 @@ const BookDetail: React.FC<BookDetailProps> = ({
             }
             return;
           }
-          
+
           // Convert sang number nếu cần
-          const userId = typeof parsedId === "number" ? parsedId : Number(parsedId);
-          
+          const userId =
+            typeof parsedId === "number" ? parsedId : Number(parsedId);
+
           if (isNaN(userId) || userId <= 0) {
             if (authUserIdRef.current !== null) {
               setAuthUserId(null);
@@ -168,7 +180,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
             }
             return;
           }
-          
+
           // Chỉ set state nếu giá trị thay đổi
           if (authUserIdRef.current !== userId) {
             setAuthUserId(userId);
@@ -191,9 +203,9 @@ const BookDetail: React.FC<BookDetailProps> = ({
         }
       }
     };
-    
+
     loadAuthUser();
-    
+
     return () => {
       isMounted = false;
     };
@@ -362,10 +374,15 @@ const BookDetail: React.FC<BookDetailProps> = ({
         err?.response?.data?.message ||
         err?.response?.data?.error ||
         err?.message;
-      
+
       // Xử lý các trường hợp lỗi cụ thể
-      if (apiMessage?.includes("already reviewed") || apiMessage?.includes("already reviewed")) {
-        setFormError("Bạn đã đánh giá sách này rồi. Vui lòng sử dụng tính năng chỉnh sửa.");
+      if (
+        apiMessage?.includes("already reviewed") ||
+        apiMessage?.includes("already reviewed")
+      ) {
+        setFormError(
+          "Bạn đã đánh giá sách này rồi. Vui lòng sử dụng tính năng chỉnh sửa."
+        );
       } else if (apiMessage?.includes("can only update your own")) {
         setFormError("Bạn chỉ có thể chỉnh sửa đánh giá của chính mình.");
       } else {
@@ -378,317 +395,347 @@ const BookDetail: React.FC<BookDetailProps> = ({
 
   return (
     <>
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onClose}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color="#111827" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Chi tiết sách</Text>
-            <View style={styles.backButtonPlaceholder} />
-          </View>
-
-          {/* Content */}
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#C92127" />
-              <Text style={styles.loadingText}>Đang tải thông tin...</Text>
-            </View>
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle" size={48} color="#EF4444" />
-              <Text style={styles.errorText}>{error}</Text>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={onClose}
+        statusBarTranslucent={true}
+      >
+        <View style={styles.overlay}>
+          <SafeAreaView style={styles.container} edges={["top"]}>
+            {/* Header */}
+            <View style={styles.header}>
               <TouchableOpacity
-                style={styles.retryButton}
-                onPress={fetchBookDetail}
+                style={styles.backButton}
+                onPress={onClose}
+                activeOpacity={0.7}
               >
-                <Text style={styles.retryText}>Thử lại</Text>
+                <Ionicons name="arrow-back" size={24} color="#111827" />
               </TouchableOpacity>
+              <Text style={styles.headerTitle}>Chi tiết sách</Text>
+              <View style={styles.backButtonPlaceholder} />
             </View>
-          ) : book ? (
-            <>
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {/* Book Image */}
-                <View style={styles.imageContainer}>
-                  <Image
-                    source={{
-                      uri:
-                        book.imageUrl || "https://via.placeholder.com/300x400",
-                    }}
-                    style={styles.bookImage}
-                    resizeMode="cover"
-                  />
-                </View>
 
-                {/* Book Info */}
-                <View style={styles.infoContainer}>
-                  <Text style={styles.category}>
-                    {book.categoryName || "Khác"}
-                  </Text>
-                  <Text style={styles.title}>{book.title}</Text>
-                  {book.author && (
-                    <Text style={styles.author}>Tác giả: {book.author}</Text>
-                  )}
-
-                  {/* Rating */}
-                  {book.reviewCount && book.reviewCount > 0 ? (
-                    <View style={styles.ratingContainer}>
-                      <View style={styles.ratingRow}>
-                        <Ionicons name="star" size={20} color="#FFB800" />
-                        <Text style={styles.rating}>
-                          {Number.isFinite(book.averageRating)
-                            ? book.averageRating!.toFixed(1)
-                            : "0.0"}
-                        </Text>
-                        <Text style={styles.reviewCount}>
-                          ({book.reviewCount} đánh giá)
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text style={styles.noReviews}>Chưa có đánh giá</Text>
-                  )}
-
-                  {/* Price and Stock */}
-                  <View style={styles.priceRow}>
-                    <Text style={styles.price}>{formatPrice(book.price)}</Text>
-                    <View style={styles.stockContainer}>
-                      <Ionicons name="cube-outline" size={16} color="#10B981" />
-                      <Text style={styles.stock}>Còn {book.stock} cuốn</Text>
-                    </View>
-                  </View>
-
-                  {/* Description */}
-                  {book.description && (
-                    <View style={styles.descriptionContainer}>
-                      <Text style={styles.descriptionTitle}>Mô tả sách</Text>
-                      <Text style={styles.description}>{book.description}</Text>
-                    </View>
-                  )}
-
-                  {/* Barcode */}
-                  {book.barcode && (
-                    <View style={styles.barcodeContainer}>
-                      <Text style={styles.barcodeLabel}>Mã sách:</Text>
-                      <Text style={styles.barcode}>{book.barcode}</Text>
-                    </View>
-                  )}
-
-                  {/* Review Form */}
-                  <View style={styles.reviewSection}>
-                    <Text style={styles.sectionTitle}>Đánh giá của bạn</Text>
-                    {authUserId ? (
-                      <View style={styles.reviewForm}>
-                        {userReview?.id && !isEditingReview ? (
-                          // Hiển thị review hiện tại với nút chỉnh sửa
-                          <View style={styles.existingReviewContainer}>
-                            <View style={styles.existingReviewHeader}>
-                              <Text style={styles.existingReviewTitle}>
-                                Đánh giá của bạn
-                              </Text>
-                              <TouchableOpacity
-                                style={styles.editButton}
-                                onPress={() => setIsEditingReview(true)}
-                                activeOpacity={0.7}
-                              >
-                                <Ionicons name="create-outline" size={18} color="#C92127" />
-                                <Text style={styles.editButtonText}>Chỉnh sửa</Text>
-                              </TouchableOpacity>
-                            </View>
-                            <View style={styles.existingReviewContent}>
-                              <View style={styles.existingReviewStars}>
-                                {renderStaticStars(userReview.rating, 20)}
-                              </View>
-                              {userReview.comment && (
-                                <Text style={styles.existingReviewComment}>
-                                  {userReview.comment}
-                                </Text>
-                              )}
-                              {userReview.status === "pending" && (
-                                <Text style={styles.pendingReviewText}>
-                                  Đang chờ duyệt
-                                </Text>
-                              )}
-                              {userReview.status === "approved" && (
-                                <Text style={styles.approvedReviewText}>
-                                  Đã được duyệt
-                                </Text>
-                              )}
-                            </View>
-                          </View>
-                        ) : (
-                          // Hiển thị form (tạo mới hoặc chỉnh sửa)
-                          <>
-                            {userReview?.id && (
-                              <View style={styles.editingHeader}>
-                                <Text style={styles.editingTitle}>Chỉnh sửa đánh giá</Text>
-                                <TouchableOpacity
-                                  style={styles.cancelButton}
-                                  onPress={() => {
-                                    setIsEditingReview(false);
-                                    // Reset form về giá trị ban đầu
-                                    if (userReview) {
-                                      setFormRating(userReview.rating);
-                                      setFormComment(userReview.comment || "");
-                                    }
-                                    setFormError(null);
-                                    setFormMessage(null);
-                                  }}
-                                  activeOpacity={0.7}
-                                >
-                                  <Text style={styles.cancelButtonText}>Hủy</Text>
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                            <View style={styles.starInputRow}>
-                              {Array.from({ length: 5 }).map((_, index) => {
-                                const starValue = index + 1;
-                                const isFilled = formRating >= starValue;
-                                return (
-                                  <TouchableOpacity
-                                    key={starValue}
-                                    onPress={() => setFormRating(starValue)}
-                                    style={styles.starButton}
-                                    activeOpacity={0.7}
-                                    disabled={submittingReview}
-                                  >
-                                    <Ionicons
-                                      name={isFilled ? "star" : "star-outline"}
-                                      size={28}
-                                      color="#FFB800"
-                                    />
-                                  </TouchableOpacity>
-                                );
-                              })}
-                            </View>
-                            <TextInput
-                              style={styles.commentInput}
-                              value={formComment}
-                              placeholder="Chia sẻ cảm nhận của bạn..."
-                              placeholderTextColor="#9CA3AF"
-                              multiline
-                              numberOfLines={4}
-                              onChangeText={setFormComment}
-                              editable={!submittingReview}
-                            />
-                            {formError && (
-                              <Text style={styles.formErrorText}>{formError}</Text>
-                            )}
-                            {formMessage && (
-                              <Text style={styles.formSuccessText}>
-                                {formMessage}
-                              </Text>
-                            )}
-                            <TouchableOpacity
-                              style={[
-                                styles.submitButton,
-                                submittingReview && styles.submitButtonDisabled,
-                              ]}
-                              onPress={handleSubmitReview}
-                              activeOpacity={0.8}
-                              disabled={submittingReview}
-                            >
-                              {submittingReview ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                              ) : (
-                                <Text style={styles.submitButtonText}>
-                                  {userReview?.id ? "Cập nhật đánh giá" : "Gửi đánh giá"}
-                                </Text>
-                              )}
-                            </TouchableOpacity>
-                          </>
-                        )}
-                      </View>
-                    ) : (
-                      <Text style={styles.loginPrompt}>
-                        Đăng nhập để chia sẻ cảm nhận và nhận ưu đãi từ HaiTeBooks.
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Review List */}
-                  <View style={styles.reviewListSection}>
-                    <Text style={styles.sectionTitle}>Đánh giá gần đây</Text>
-                    {topReviews.length === 0 ? (
-                      <Text style={styles.emptyReviewText}>
-                        Chưa có đánh giá nào được hiển thị.
-                      </Text>
-                    ) : (
-                      topReviews.map((reviewItem) => (
-                        <View key={reviewItem.id} style={styles.reviewCard}>
-                          <View style={styles.reviewCardHeader}>
-                            <Text style={styles.reviewerName}>
-                              {reviewItem.userName || "Người dùng ẩn danh"}
-                            </Text>
-                            <Text style={styles.reviewDate}>
-                              {formatReviewDate(reviewItem.createdAt)}
-                            </Text>
-                          </View>
-                          <View style={styles.reviewStars}>
-                            {renderStaticStars(reviewItem.rating, 18)}
-                          </View>
-                          {reviewItem.comment ? (
-                            <Text style={styles.reviewComment}>
-                              {reviewItem.comment}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ))
-                    )}
-                  </View>
-                </View>
-              </ScrollView>
-
-              <View
-                style={[
-                  styles.footer,
-                  { paddingBottom: Math.max(insets.bottom, 16) },
-                ]}
-                pointerEvents="box-none"
-              >
-                <View style={styles.footerButtons} pointerEvents="auto">
-                  <View style={styles.buyButtonContainer}>
-                    <BuyNowButton
-                      bookId={book.id}
-                      bookTitle={book.title}
-                      stock={book.stock}
+            {/* Content */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#C92127" />
+                <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+              </View>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={48} color="#EF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={fetchBookDetail}
+                >
+                  <Text style={styles.retryText}>Thử lại</Text>
+                </TouchableOpacity>
+              </View>
+            ) : book ? (
+              <>
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* Book Image */}
+                  <View style={styles.imageContainer}>
+                    <Image
+                      source={{
+                        uri:
+                          book.imageUrl ||
+                          "https://via.placeholder.com/300x400",
+                      }}
+                      style={styles.bookImage}
+                      resizeMode="cover"
                     />
                   </View>
-                </View>
-              </View>
-            </>
-          ) : null}
-        </View>
-      </View>
-    </Modal>
 
-    {/* SimilarBooksModal - only render if no callback provided (fallback) */}
-    {!onShowSimilarBooks && (
-      <SimilarBooksModal
-        visible={showSimilarBooks}
-        bookId={bookId}
-        bookTitle={book?.title}
-        onClose={() => {
-          console.log("🔍 Closing SimilarBooksModal");
-          setShowSimilarBooks(false);
-        }}
-      />
-    )}
+                  {/* Book Info */}
+                  <View style={styles.infoContainer}>
+                    <Text style={styles.category}>
+                      {book.categoryName || "Khác"}
+                    </Text>
+                    <Text style={styles.title}>{book.title}</Text>
+                    {book.author && (
+                      <Text style={styles.author}>Tác giả: {book.author}</Text>
+                    )}
+
+                    {/* Rating */}
+                    {book.reviewCount && book.reviewCount > 0 ? (
+                      <View style={styles.ratingContainer}>
+                        <View style={styles.ratingRow}>
+                          <Ionicons name="star" size={20} color="#FFB800" />
+                          <Text style={styles.rating}>
+                            {Number.isFinite(book.averageRating)
+                              ? book.averageRating!.toFixed(1)
+                              : "0.0"}
+                          </Text>
+                          <Text style={styles.reviewCount}>
+                            ({book.reviewCount} đánh giá)
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.noReviews}>Chưa có đánh giá</Text>
+                    )}
+
+                    {/* Price and Stock */}
+                    <View style={styles.priceRow}>
+                      <Text style={styles.price}>
+                        {formatPrice(book.price)}
+                      </Text>
+                      <View style={styles.stockContainer}>
+                        <Ionicons
+                          name="cube-outline"
+                          size={16}
+                          color="#10B981"
+                        />
+                        <Text style={styles.stock}>Còn {book.stock} cuốn</Text>
+                      </View>
+                    </View>
+
+                    {/* Description */}
+                    {book.description && (
+                      <View style={styles.descriptionContainer}>
+                        <Text style={styles.descriptionTitle}>Mô tả sách</Text>
+                        <Text style={styles.description}>
+                          {book.description}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Barcode */}
+                    {book.barcode && (
+                      <View style={styles.barcodeContainer}>
+                        <Text style={styles.barcodeLabel}>Mã sách:</Text>
+                        <Text style={styles.barcode}>{book.barcode}</Text>
+                      </View>
+                    )}
+
+                    {/* Review Form */}
+                    <View style={styles.reviewSection}>
+                      <Text style={styles.sectionTitle}>Đánh giá của bạn</Text>
+                      {authUserId ? (
+                        <View style={styles.reviewForm}>
+                          {userReview?.id && !isEditingReview ? (
+                            // Hiển thị review hiện tại với nút chỉnh sửa
+                            <View style={styles.existingReviewContainer}>
+                              <View style={styles.existingReviewHeader}>
+                                <Text style={styles.existingReviewTitle}>
+                                  Đánh giá của bạn
+                                </Text>
+                                <TouchableOpacity
+                                  style={styles.editButton}
+                                  onPress={() => setIsEditingReview(true)}
+                                  activeOpacity={0.7}
+                                >
+                                  <Ionicons
+                                    name="create-outline"
+                                    size={18}
+                                    color="#C92127"
+                                  />
+                                  <Text style={styles.editButtonText}>
+                                    Chỉnh sửa
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                              <View style={styles.existingReviewContent}>
+                                <View style={styles.existingReviewStars}>
+                                  {renderStaticStars(userReview.rating, 20)}
+                                </View>
+                                {userReview.comment && (
+                                  <Text style={styles.existingReviewComment}>
+                                    {userReview.comment}
+                                  </Text>
+                                )}
+                                {userReview.status === "pending" && (
+                                  <Text style={styles.pendingReviewText}>
+                                    Đang chờ duyệt
+                                  </Text>
+                                )}
+                                {userReview.status === "approved" && (
+                                  <Text style={styles.approvedReviewText}>
+                                    Đã được duyệt
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          ) : (
+                            // Hiển thị form (tạo mới hoặc chỉnh sửa)
+                            <>
+                              {userReview?.id && (
+                                <View style={styles.editingHeader}>
+                                  <Text style={styles.editingTitle}>
+                                    Chỉnh sửa đánh giá
+                                  </Text>
+                                  <TouchableOpacity
+                                    style={styles.cancelButton}
+                                    onPress={() => {
+                                      setIsEditingReview(false);
+                                      // Reset form về giá trị ban đầu
+                                      if (userReview) {
+                                        setFormRating(userReview.rating);
+                                        setFormComment(
+                                          userReview.comment || ""
+                                        );
+                                      }
+                                      setFormError(null);
+                                      setFormMessage(null);
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={styles.cancelButtonText}>
+                                      Hủy
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              )}
+                              <View style={styles.starInputRow}>
+                                {Array.from({ length: 5 }).map((_, index) => {
+                                  const starValue = index + 1;
+                                  const isFilled = formRating >= starValue;
+                                  return (
+                                    <TouchableOpacity
+                                      key={starValue}
+                                      onPress={() => setFormRating(starValue)}
+                                      style={styles.starButton}
+                                      activeOpacity={0.7}
+                                      disabled={submittingReview}
+                                    >
+                                      <Ionicons
+                                        name={
+                                          isFilled ? "star" : "star-outline"
+                                        }
+                                        size={28}
+                                        color="#FFB800"
+                                      />
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </View>
+                              <TextInput
+                                style={styles.commentInput}
+                                value={formComment}
+                                placeholder="Chia sẻ cảm nhận của bạn..."
+                                placeholderTextColor="#9CA3AF"
+                                multiline
+                                numberOfLines={4}
+                                onChangeText={setFormComment}
+                                editable={!submittingReview}
+                              />
+                              {formError && (
+                                <Text style={styles.formErrorText}>
+                                  {formError}
+                                </Text>
+                              )}
+                              {formMessage && (
+                                <Text style={styles.formSuccessText}>
+                                  {formMessage}
+                                </Text>
+                              )}
+                              <TouchableOpacity
+                                style={[
+                                  styles.submitButton,
+                                  submittingReview &&
+                                    styles.submitButtonDisabled,
+                                ]}
+                                onPress={handleSubmitReview}
+                                activeOpacity={0.8}
+                                disabled={submittingReview}
+                              >
+                                {submittingReview ? (
+                                  <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                  <Text style={styles.submitButtonText}>
+                                    {userReview?.id
+                                      ? "Cập nhật đánh giá"
+                                      : "Gửi đánh giá"}
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                            </>
+                          )}
+                        </View>
+                      ) : (
+                        <Text style={styles.loginPrompt}>
+                          Đăng nhập để chia sẻ cảm nhận và nhận ưu đãi từ
+                          HaiTeBooks.
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Review List */}
+                    <View style={styles.reviewListSection}>
+                      <Text style={styles.sectionTitle}>Đánh giá gần đây</Text>
+                      {topReviews.length === 0 ? (
+                        <Text style={styles.emptyReviewText}>
+                          Chưa có đánh giá nào được hiển thị.
+                        </Text>
+                      ) : (
+                        topReviews.map((reviewItem) => (
+                          <View key={reviewItem.id} style={styles.reviewCard}>
+                            <View style={styles.reviewCardHeader}>
+                              <Text style={styles.reviewerName}>
+                                {reviewItem.userName || "Người dùng ẩn danh"}
+                              </Text>
+                              <Text style={styles.reviewDate}>
+                                {formatReviewDate(reviewItem.createdAt)}
+                              </Text>
+                            </View>
+                            <View style={styles.reviewStars}>
+                              {renderStaticStars(reviewItem.rating, 18)}
+                            </View>
+                            {reviewItem.comment ? (
+                              <Text style={styles.reviewComment}>
+                                {reviewItem.comment}
+                              </Text>
+                            ) : null}
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  </View>
+                </ScrollView>
+
+                <View
+                  style={[
+                    styles.footer,
+                    { paddingBottom: Math.max(insets.bottom, 16) },
+                  ]}
+                  pointerEvents="box-none"
+                >
+                  <View style={styles.footerButtons} pointerEvents="auto">
+                    <View style={styles.buyButtonContainer}>
+                      <BuyNowButton
+                        bookId={book.id}
+                        bookTitle={book.title}
+                        stock={book.stock}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </>
+            ) : null}
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* SimilarBooksModal - only render if no callback provided (fallback) */}
+      {!onShowSimilarBooks && (
+        <SimilarBooksModal
+          visible={showSimilarBooks}
+          bookId={bookId}
+          bookTitle={book?.title}
+          onClose={() => {
+            console.log("🔍 Closing SimilarBooksModal");
+            setShowSimilarBooks(false);
+          }}
+        />
+      )}
     </>
   );
 };
@@ -709,8 +756,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    minHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
+    zIndex: 10,
+    elevation: 10,
   },
   backButton: {
     width: 40,

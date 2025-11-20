@@ -330,8 +330,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#C92127",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     gap: 8,
+    minHeight: 56,
     ...Platform.select({
       ios: {
         shadowColor: "#000",

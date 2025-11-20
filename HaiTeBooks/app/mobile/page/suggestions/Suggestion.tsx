@@ -359,9 +359,10 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: "#C92127",
-    paddingVertical: 16,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
+    minHeight: 56,
   },
   headerTitle: {
     fontSize: 20,

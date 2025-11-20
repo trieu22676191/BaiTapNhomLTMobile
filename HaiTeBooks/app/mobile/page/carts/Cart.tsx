@@ -515,6 +515,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
+    minHeight: 56,
   },
   headerTitle: {
     fontSize: 18,
