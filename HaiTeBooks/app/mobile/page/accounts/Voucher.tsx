@@ -28,6 +28,7 @@ interface Promotion {
   isActive: boolean;
   approvedByUserId?: number;
   status?: "pending" | "approved" | "rejected" | "deactivated";
+  minimumOrderAmount?: number | null;
 }
 
 const Voucher: React.FC = () => {
@@ -66,6 +67,7 @@ const Voucher: React.FC = () => {
               : true,
           approvedByUserId: promo.approvedByUserId || promo.approvedBy,
           status: promo.status,
+          minimumOrderAmount: promo.minimumOrderAmount || null,
         }))
         .filter((promo: Promotion) => {
           // Chỉ lấy promotions đã được approve và đang active
@@ -139,22 +141,17 @@ const Voucher: React.FC = () => {
     return `Giảm ${percent}%`;
   };
 
-  // Tính điều kiện đơn hàng tối thiểu dựa trên discount percent
-  const getMinOrderAmount = (discountPercent: number): number => {
-    // Logic tương đối: giảm giá càng cao thì đơn hàng tối thiểu càng cao
-    if (discountPercent <= 5) return 100;
-    if (discountPercent <= 10) return 130;
-    if (discountPercent <= 15) return 200;
-    if (discountPercent <= 20) return 249;
-    if (discountPercent <= 30) return 400;
-    if (discountPercent <= 40) return 499;
-    if (discountPercent <= 50) return 600;
-    return 999;
+  // Format số tiền (VND) sang k (nghìn)
+  const formatMinOrder = (amount: number | null | undefined): string => {
+    if (!amount || amount === 0) return "";
+    return `${Math.round(amount / 1000)}k`;
   };
 
   // Render voucher item
   const renderVoucherItem = ({ item }: { item: Promotion }) => {
-    const minOrder = getMinOrderAmount(item.discountPercent);
+    const minOrderText = item.minimumOrderAmount
+      ? formatMinOrder(item.minimumOrderAmount)
+      : null;
 
     return (
       <View style={styles.voucherCard}>
@@ -167,8 +164,9 @@ const Voucher: React.FC = () => {
         <View style={styles.voucherInfo}>
           <Text style={styles.voucherName}>{item.name}</Text>
           <Text style={styles.voucherCondition}>
-            Đơn hàng từ {minOrder}k - Không bao gồm giá trị của các sản phẩm sau
-            Manga, Ngoại Văn...
+            {minOrderText
+              ? `Giảm ${item.discountPercent}% cho đơn hàng từ ${minOrderText}`
+              : `Giảm ${item.discountPercent}%`}
           </Text>
           <View style={styles.voucherCodeContainer}>
             <Text style={styles.voucherCodeLabel}>Mã: </Text>
