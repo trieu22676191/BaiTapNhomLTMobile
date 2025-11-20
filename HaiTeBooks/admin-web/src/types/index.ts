@@ -101,6 +101,7 @@ export interface Promotion {
   startDate: string;
   endDate: string;
   quantity: number;
+  minimumOrderAmount?: number | null; // Giá trị đơn hàng tối thiểu (VND)
   isActive: boolean;
   createdByUserId?: number;
   approvedByUserId?: number;

@@ -29,6 +29,7 @@ const Promotions = () => {
     startDate: "",
     endDate: "",
     quantity: 0,
+    minimumOrderAmount: "" as string | number,
   });
 
   // Helper function để xác định status hiện tại
@@ -71,6 +72,7 @@ const Promotions = () => {
         startDate: promo.startDate,
         endDate: promo.endDate,
         quantity: promo.quantity,
+        minimumOrderAmount: promo.minimumOrderAmount || null,
         isActive:
           promo.isActive !== undefined
             ? promo.isActive
@@ -201,6 +203,12 @@ const Promotions = () => {
         startDate: startDate,
         endDate: endDate,
         quantity: formData.quantity,
+        minimumOrderAmount:
+          formData.minimumOrderAmount === "" ||
+          formData.minimumOrderAmount === null ||
+          formData.minimumOrderAmount === undefined
+            ? null
+            : Number(formData.minimumOrderAmount) || null,
       };
 
       console.log(
@@ -371,6 +379,7 @@ const Promotions = () => {
       startDate: promotion.startDate,
       endDate: promotion.endDate,
       quantity: promotion.quantity,
+      minimumOrderAmount: promotion.minimumOrderAmount || "",
     });
     setShowModal(true);
   };
@@ -385,6 +394,7 @@ const Promotions = () => {
       startDate: "",
       endDate: "",
       quantity: 0,
+      minimumOrderAmount: "",
     });
   };
 
@@ -555,6 +565,9 @@ const Promotions = () => {
                   Số lượng
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Giá trị áp dụng
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trạng thái
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -566,7 +579,7 @@ const Promotions = () => {
               {promotions.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-8 text-center text-gray-500"
                   >
                     Chưa có khuyến mãi nào
@@ -607,6 +620,14 @@ const Promotions = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {promotion.quantity}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {promotion.minimumOrderAmount
+                        ? new Intl.NumberFormat("vi-VN", {
+                            style: "currency",
+                            currency: "VND",
+                          }).format(promotion.minimumOrderAmount)
+                        : "Không có"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
@@ -811,6 +832,36 @@ const Promotions = () => {
                     placeholder="Nhập số lượng"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Giá trị đơn hàng tối thiểu (VND)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={
+                    formData.minimumOrderAmount === "" ||
+                    formData.minimumOrderAmount === null ||
+                    formData.minimumOrderAmount === undefined
+                      ? ""
+                      : formData.minimumOrderAmount
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData({
+                      ...formData,
+                      minimumOrderAmount:
+                        value === "" ? "" : parseInt(value) || "",
+                    });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Để trống nếu không có điều kiện"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Khuyến mãi chỉ áp dụng khi đơn hàng đạt giá trị tối thiểu này. Để trống nếu không có điều kiện.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

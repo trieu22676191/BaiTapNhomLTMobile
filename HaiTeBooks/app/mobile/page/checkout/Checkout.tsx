@@ -45,6 +45,7 @@ const Checkout: React.FC = () => {
     code: string;
     discountPercent: number;
     name: string;
+    minimumOrderAmount?: number | null;
   } | null>(null);
   const [validatingPromotion, setValidatingPromotion] = useState(false);
   const [promotionError, setPromotionError] = useState("");
@@ -61,6 +62,33 @@ const Checkout: React.FC = () => {
   useEffect(() => {
     loadCheckoutData();
   }, []);
+
+  // Tự động kiểm tra lại điều kiện khi items thay đổi
+  useEffect(() => {
+    if (appliedPromotion && appliedPromotion.minimumOrderAmount) {
+      if (subtotal < appliedPromotion.minimumOrderAmount) {
+        const minAmountFormatted = formatVnd(
+          appliedPromotion.minimumOrderAmount
+        );
+        const currentSubtotalFormatted = formatVnd(subtotal);
+        setPromotionError(
+          `Đơn hàng không đủ điều kiện áp dụng. Giá trị đơn hàng tối thiểu: ${minAmountFormatted}. Giá trị hiện tại: ${currentSubtotalFormatted}`
+        );
+        setAppliedPromotion(null);
+        setPromotionCode("");
+        Alert.alert(
+          "Mã khuyến mãi đã bị gỡ",
+          `Đơn hàng của bạn không còn đủ điều kiện để áp dụng mã khuyến mãi này.\n\nGiá trị đơn hàng tối thiểu: ${minAmountFormatted}\nGiá trị hiện tại: ${currentSubtotalFormatted}`
+        );
+      } else {
+        // Nếu đủ điều kiện, xóa lỗi nếu có
+        if (promotionError && promotionError.includes("không đủ điều kiện")) {
+          setPromotionError("");
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, subtotal]);
 
   const loadCheckoutData = async () => {
     try {
@@ -212,12 +240,34 @@ const Checkout: React.FC = () => {
 
       // Backend trả về PromotionResponse trực tiếp (không có wrapper)
       if (response.data && response.data.id) {
-        setAppliedPromotion({
+        const promotion = {
           id: response.data.id,
           code: response.data.code,
           discountPercent: response.data.discountPercent,
           name: response.data.name,
-        });
+          minimumOrderAmount: response.data.minimumOrderAmount || null,
+        };
+
+        // Kiểm tra điều kiện giá trị đơn hàng tối thiểu
+        if (
+          promotion.minimumOrderAmount &&
+          promotion.minimumOrderAmount > 0 &&
+          subtotal < promotion.minimumOrderAmount
+        ) {
+          const minAmountFormatted = formatVnd(promotion.minimumOrderAmount);
+          const currentSubtotalFormatted = formatVnd(subtotal);
+          setPromotionError(
+            `Đơn hàng không đủ điều kiện áp dụng. Giá trị đơn hàng tối thiểu: ${minAmountFormatted}. Giá trị hiện tại: ${currentSubtotalFormatted}`
+          );
+          setAppliedPromotion(null);
+          Alert.alert(
+            "Không đủ điều kiện",
+            `Đơn hàng của bạn chưa đủ điều kiện để áp dụng mã khuyến mãi này.\n\nGiá trị đơn hàng tối thiểu: ${minAmountFormatted}\nGiá trị hiện tại: ${currentSubtotalFormatted}`
+          );
+          return;
+        }
+
+        setAppliedPromotion(promotion);
         Alert.alert(
           "Thành công",
           `Áp dụng mã giảm giá ${response.data.discountPercent}% thành công!`
@@ -305,12 +355,12 @@ const Checkout: React.FC = () => {
                 }
               }
 
-              // Tạo đơn hàng - Backend sẽ nhận OrderRequest DTO (sau khi sửa backend)
+              // Tạo đơn hàng - Backend sẽ nhận OrderRequest DTO
               // Format theo OrderRequest DTO structure
               const orderData = {
                 userId: userId, // OrderRequest có userId (Long)
-                total: totalPrice, // OrderRequest có total (Double) - cần thêm vào DTO
-                status: "PENDING", // OrderRequest có status (String) - cần thêm vào DTO
+                total: totalPrice, // OrderRequest có total (Double) - đã tính sau khi giảm giá
+                status: "PENDING", // OrderRequest có status (String)
                 orderItems: items.map((item) => ({
                   bookId: item.bookId, // OrderItemRequest có bookId (Long)
                   quantity: item.qty, // OrderItemRequest có quantity (Integer)
@@ -318,8 +368,8 @@ const Checkout: React.FC = () => {
                 })),
                 address: formData.address, // OrderRequest có address (String)
                 note: formData.note || "", // OrderRequest có note (String)
-                appliedPromotionId: appliedPromotion?.id || null, // Thêm promotion ID nếu có
-                paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD", // Thêm paymentMethod
+                promotionCode: appliedPromotion?.code || null, // Backend nhận promotionCode (String), không phải ID
+                paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "CASH", // Backend enum: CASH | VNPAY
               };
 
               console.log(
@@ -373,7 +423,8 @@ const Checkout: React.FC = () => {
                     quantity: item.qty,
                     price: item.price,
                   })),
-                  paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD",
+                  promotionCode: appliedPromotion?.code || null,
+                  paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "CASH",
                 };
                 console.log(
                   "📦 Trying Format 2:",
@@ -398,6 +449,7 @@ const Checkout: React.FC = () => {
                       quantity: item.qty,
                       price: item.price,
                     })),
+                    promotionCode: appliedPromotion?.code || null,
                     paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD",
                   };
                   console.log(
@@ -640,6 +692,12 @@ const Checkout: React.FC = () => {
                   <Text style={styles.promotionAppliedName}>
                     {appliedPromotion.name} - Giảm {appliedPromotion.discountPercent}%
                   </Text>
+                  {appliedPromotion.minimumOrderAmount &&
+                    appliedPromotion.minimumOrderAmount > 0 && (
+                      <Text style={styles.promotionAppliedCondition}>
+                        Áp dụng cho đơn hàng từ {formatVnd(appliedPromotion.minimumOrderAmount)}
+                      </Text>
+                    )}
                 </View>
               </View>
               <TouchableOpacity
@@ -1026,6 +1084,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#059669",
     marginTop: 2,
+  },
+  promotionAppliedCondition: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 4,
+    fontStyle: "italic",
   },
   removePromotionButton: {
     marginLeft: 8,

@@ -74,6 +74,15 @@ const OrderDetail: React.FC = () => {
       const response = await axiosInstance.get(`/orders/${orderId}`);
       const orderData = response.data;
 
+      console.log(
+        "📦 Order data from backend:",
+        JSON.stringify(orderData, null, 2)
+      );
+      console.log(
+        "🎁 Applied promotion from backend:",
+        orderData.appliedPromotion
+      );
+
       // Normalize data
       const normalizedOrder: Order = {
         id: orderData.id,
@@ -84,9 +93,44 @@ const OrderDetail: React.FC = () => {
         address: orderData.address || orderData.shippingAddress,
         note: orderData.note || orderData.customerNote,
         orderItems: orderData.orderItems || orderData.items || [],
-        appliedPromotion: orderData.appliedPromotion,
+        appliedPromotion: orderData.appliedPromotion
+          ? {
+              id: orderData.appliedPromotion.id,
+              code: orderData.appliedPromotion.code,
+              discountPercent: orderData.appliedPromotion.discountPercent,
+              name: orderData.appliedPromotion.name,
+            }
+          : undefined,
       };
 
+      console.log(
+        "✅ Normalized order:",
+        JSON.stringify(normalizedOrder, null, 2)
+      );
+      console.log(
+        "💰 Subtotal:",
+        normalizedOrder.orderItems?.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        ) || 0
+      );
+      console.log("🎁 Applied promotion:", normalizedOrder.appliedPromotion);
+      if (normalizedOrder.appliedPromotion) {
+        const subtotalCalc =
+          normalizedOrder.orderItems?.reduce(
+            (sum, item) => sum + item.price * item.quantity,
+            0
+          ) || 0;
+        const discountCalc =
+          (subtotalCalc * normalizedOrder.appliedPromotion!.discountPercent) /
+          100;
+        console.log("💵 Discount amount:", discountCalc);
+        console.log(
+          "💵 Final total (subtotal - discount):",
+          subtotalCalc - discountCalc
+        );
+        console.log("💵 Order total from backend:", normalizedOrder.total);
+      }
       setOrder(normalizedOrder);
     } catch (error: any) {
       console.error("❌ Lỗi khi tải đơn hàng:", error);
@@ -165,7 +209,10 @@ const OrderDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -188,7 +235,10 @@ const OrderDetail: React.FC = () => {
 
   if (!order) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -200,7 +250,11 @@ const OrderDetail: React.FC = () => {
           <View style={styles.headerRight} />
         </View>
         <View style={styles.emptyContainer}>
-          <Ionicons name="document-outline" size={64} color={colors.textSecondary} />
+          <Ionicons
+            name="document-outline"
+            size={64}
+            color={colors.textSecondary}
+          />
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
             Không tìm thấy đơn hàng
           </Text>
@@ -210,16 +264,25 @@ const OrderDetail: React.FC = () => {
   }
 
   const statusInfo = getStatusInfo(order.status);
-  const subtotal = order.orderItems?.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  ) || 0;
+  const subtotal =
+    order.orderItems?.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    ) || 0;
   const discountAmount = order.appliedPromotion
     ? (subtotal * order.appliedPromotion.discountPercent) / 100
     : 0;
+  // Tính lại total từ subtotal - discountAmount nếu có promotion
+  // Vì backend có thể không tính lại total đúng cách
+  const finalTotal = order.appliedPromotion
+    ? subtotal - discountAmount
+    : order.total;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -290,6 +353,70 @@ const OrderDetail: React.FC = () => {
               </Text>
             </View>
           )}
+          {order.appliedPromotion && (
+            <View style={styles.promotionSection}>
+              <View style={styles.promotionHeader}>
+                <Ionicons name="pricetag" size={18} color="#10B981" />
+                <Text style={[styles.promotionTitle, { color: colors.text }]}>
+                  Mã khuyến mãi đã áp dụng
+                </Text>
+              </View>
+              <View style={styles.promotionInfo}>
+                <View style={styles.promotionRow}>
+                  <Text
+                    style={[
+                      styles.promotionLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Mã:
+                  </Text>
+                  <Text style={[styles.promotionCode, { color: "#10B981" }]}>
+                    {order.appliedPromotion.code}
+                  </Text>
+                </View>
+                <View style={styles.promotionRow}>
+                  <Text
+                    style={[
+                      styles.promotionLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Tên khuyến mãi:
+                  </Text>
+                  <Text style={[styles.promotionValue, { color: colors.text }]}>
+                    {order.appliedPromotion.name}
+                  </Text>
+                </View>
+                <View style={styles.promotionRow}>
+                  <Text
+                    style={[
+                      styles.promotionLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Giảm giá:
+                  </Text>
+                  <Text style={[styles.promotionValue, { color: "#10B981" }]}>
+                    {order.appliedPromotion.discountPercent}%
+                  </Text>
+                </View>
+                <View style={[styles.promotionRow, styles.promotionAmountRow]}>
+                  <Text
+                    style={[
+                      styles.promotionLabel,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Số tiền đã giảm:
+                  </Text>
+                  <Text style={[styles.promotionAmount, { color: "#10B981" }]}>
+                    -{formatCurrency(discountAmount)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Order Items */}
@@ -305,7 +432,9 @@ const OrderDetail: React.FC = () => {
                     <Text style={[styles.itemTitle, { color: colors.text }]}>
                       {item.bookTitle || `Sách #${item.bookId}`}
                     </Text>
-                    <Text style={[styles.itemMeta, { color: colors.textSecondary }]}>
+                    <Text
+                      style={[styles.itemMeta, { color: colors.textSecondary }]}
+                    >
                       Số lượng: {item.quantity} x {formatCurrency(item.price)}
                     </Text>
                   </View>
@@ -328,7 +457,9 @@ const OrderDetail: React.FC = () => {
             Tổng kết đơn hàng
           </Text>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
+            <Text
+              style={[styles.summaryLabel, { color: colors.textSecondary }]}
+            >
               Tạm tính:
             </Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>
@@ -336,23 +467,34 @@ const OrderDetail: React.FC = () => {
             </Text>
           </View>
           {order.appliedPromotion && (
-            <>
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
-                  Khuyến mãi ({order.appliedPromotion.code}):
+            <View style={styles.summaryRow}>
+              <View style={styles.discountInfo}>
+                <Text
+                  style={[styles.summaryLabel, { color: colors.textSecondary }]}
+                >
+                  Khuyến mãi:
                 </Text>
-                <Text style={[styles.summaryValue, { color: "#10B981" }]}>
-                  -{formatCurrency(discountAmount)}
+                <Text style={[styles.discountCode, { color: "#10B981" }]}>
+                  {order.appliedPromotion.code} (-
+                  {order.appliedPromotion.discountPercent}%)
                 </Text>
               </View>
-            </>
+              <Text
+                style={[
+                  styles.summaryValue,
+                  { color: "#10B981", fontWeight: "700" },
+                ]}
+              >
+                -{formatCurrency(discountAmount)}
+              </Text>
+            </View>
           )}
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={[styles.totalLabel, { color: colors.text }]}>
               Tổng tiền:
             </Text>
             <Text style={[styles.totalValue, { color: "#C92127" }]}>
-              {formatCurrency(order.total)}
+              {formatCurrency(finalTotal)}
             </Text>
           </View>
         </View>
@@ -489,6 +631,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
+  discountInfo: {
+    flex: 1,
+  },
+  discountCode: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
   totalRow: {
     marginTop: 8,
     paddingTop: 12,
@@ -514,7 +664,63 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: "center",
   },
+  promotionSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  promotionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 8,
+  },
+  promotionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  promotionInfo: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+  },
+  promotionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  promotionAmountRow: {
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#D1FAE5",
+    marginBottom: 0,
+  },
+  promotionLabel: {
+    fontSize: 14,
+    flex: 1,
+  },
+  promotionCode: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  promotionValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 2,
+    textAlign: "right",
+  },
+  promotionAmount: {
+    fontSize: 16,
+    fontWeight: "800",
+    flex: 2,
+    textAlign: "right",
+  },
 });
 
 export default OrderDetail;
-
