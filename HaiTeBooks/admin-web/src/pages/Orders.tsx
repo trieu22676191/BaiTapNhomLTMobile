@@ -8,19 +8,31 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import axiosInstance from "../config/axios";
 import { Order } from "../types";
 
 const Orders = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(
+    searchParams.get("status") || "all"
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Cập nhật filter khi URL thay đổi
+  useEffect(() => {
+    const statusFromUrl = searchParams.get("status");
+    if (statusFromUrl) {
+      // Normalize status về lowercase để match với order.status đã được normalize
+      setStatusFilter(statusFromUrl.toLowerCase());
+    }
+  }, [searchParams]);
 
   const fetchOrders = async () => {
     try {
@@ -301,7 +313,15 @@ const Orders = () => {
           ].map((filter) => (
             <button
               key={filter.value}
-              onClick={() => setStatusFilter(filter.value)}
+              onClick={() => {
+                setStatusFilter(filter.value);
+                // Cập nhật URL với query param
+                if (filter.value === "all") {
+                  setSearchParams({});
+                } else {
+                  setSearchParams({ status: filter.value });
+                }
+              }}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 statusFilter === filter.value
                   ? "bg-primary-600 text-white"

@@ -1,16 +1,20 @@
 import { Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import axiosInstance from "../config/axios";
 import { Book, Category } from "../types";
 
 const Books = () => {
   const location = useLocation(); // ⭐ Detect navigation
+  const [searchParams, setSearchParams] = useSearchParams();
   const [books, setBooks] = useState<Book[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
+  const [showLowStockOnly, setShowLowStockOnly] = useState<boolean>(
+    searchParams.get("lowStock") === "true"
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -18,6 +22,16 @@ const Books = () => {
     console.log("📚 Books page loaded/refreshed");
     fetchData();
   }, [location.key]); // ⭐ Fetch lại mỗi khi navigate đến trang này
+
+  // Cập nhật filter khi URL thay đổi
+  useEffect(() => {
+    const lowStockFromUrl = searchParams.get("lowStock");
+    if (lowStockFromUrl === "true") {
+      setShowLowStockOnly(true);
+    } else {
+      setShowLowStockOnly(false);
+    }
+  }, [searchParams]);
 
   // Tối ưu: Gọi books và categories song song thay vì tuần tự
   const fetchData = async () => {
@@ -64,6 +78,11 @@ const Books = () => {
 
   // Filter và Pagination
   const filteredBooks = books.filter((book) => {
+    // Filter theo low stock (sách sắp hết hàng: stock <= 10)
+    if (showLowStockOnly && (book.stock || 0) > 10) {
+      return false;
+    }
+
     // Filter theo search term
     const matchesSearch =
       book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -228,9 +247,23 @@ const Books = () => {
         </div>
 
         {/* Active Filters Info */}
-        {(selectedCategoryId !== "all" || searchTerm) && (
+        {(selectedCategoryId !== "all" || searchTerm || showLowStockOnly) && (
           <div className="mt-3 flex flex-wrap gap-2 items-center">
             <span className="text-sm text-gray-600">Bộ lọc đang áp dụng:</span>
+            {showLowStockOnly && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                Sách sắp hết hàng
+                <button
+                  onClick={() => {
+                    setShowLowStockOnly(false);
+                    setSearchParams({});
+                  }}
+                  className="ml-2 hover:text-orange-900"
+                >
+                  ×
+                </button>
+              </span>
+            )}
             {selectedCategoryId !== "all" && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                 {selectedCategoryId === "uncategorized"
@@ -261,6 +294,8 @@ const Books = () => {
               onClick={() => {
                 setSearchTerm("");
                 setSelectedCategoryId("all");
+                setShowLowStockOnly(false);
+                setSearchParams({});
               }}
               className="text-sm text-primary-600 hover:text-primary-800 font-medium"
             >

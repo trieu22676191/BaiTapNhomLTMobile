@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  ArrowRight,
   BookOpen,
   DollarSign,
   RefreshCw,
@@ -8,6 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import axiosInstance from "../config/axios";
 import { DashboardStats } from "../types";
 
@@ -43,15 +45,21 @@ const Dashboard = () => {
         console.log("✅ Using statistics/overview API");
       } catch (error) {
         // Nếu không có API tổng quan, gọi các API riêng lẻ song song
-        console.log("⚠️ statistics/overview not available, fetching individual APIs");
-        [ordersResponse, booksResponse, usersResponse] = await Promise.allSettled([
+        console.log(
+          "⚠️ statistics/overview not available, fetching individual APIs"
+        );
+      }
+
+      // Luôn fetch orders và books để tính lại pendingOrders và lowStockBooks chính xác
+      [ordersResponse, booksResponse, usersResponse] = await Promise.allSettled(
+        [
           axiosInstance.get("/orders"),
           axiosInstance.get("/books"),
           axiosInstance
             .get("/admin/users")
             .catch(() => axiosInstance.get("/users")),
-        ]);
-      }
+        ]
+      );
 
       // Xử lý dữ liệu từ các API
       let statsData: DashboardStats = {
@@ -80,8 +88,11 @@ const Dashboard = () => {
         };
       }
 
-      // Xử lý Orders (chỉ nếu không có API tổng quan)
-      if (!statsResponse && ordersResponse?.status === "fulfilled" && ordersResponse.value?.data) {
+      // Xử lý Orders (nếu không có API tổng quan hoặc cần tính lại pendingOrders)
+      if (
+        ordersResponse?.status === "fulfilled" &&
+        ordersResponse.value?.data
+      ) {
         const orders = ordersResponse.value.data || [];
 
         // Normalize orders
@@ -96,15 +107,14 @@ const Dashboard = () => {
         }));
 
         // Tính toán từ orders nếu chưa có từ statistics API
-        if (!statsData.totalOrders) {
+        if (!statsResponse || !statsData.totalOrders) {
           statsData.totalOrders = normalizedOrders.length;
         }
-        if (!statsData.pendingOrders) {
-          statsData.pendingOrders = normalizedOrders.filter(
-            (o: any) => o.status === "pending"
-          ).length;
-        }
-        if (!statsData.totalRevenue) {
+        // Luôn đếm lại pendingOrders từ orders để đảm bảo chính xác (đơn hàng chờ xác nhận)
+        statsData.pendingOrders = normalizedOrders.filter(
+          (o: any) => (o.status || "").toLowerCase() === "pending"
+        ).length;
+        if (!statsResponse || !statsData.totalRevenue) {
           statsData.totalRevenue = normalizedOrders
             .filter(
               (o: any) => o.status === "completed" || o.status === "shipping"
@@ -169,17 +179,20 @@ const Dashboard = () => {
         }
       }
 
-      // Xử lý Books (chỉ nếu không có API tổng quan)
-      if (!statsResponse && booksResponse?.status === "fulfilled" && booksResponse.value?.data) {
+      // Xử lý Books (nếu không có API tổng quan hoặc cần tính lại lowStockBooks)
+      if (booksResponse?.status === "fulfilled" && booksResponse.value?.data) {
         const books = booksResponse.value.data || [];
 
-        if (!statsData.totalBooks) {
+        if (!statsResponse || !statsData.totalBooks) {
           statsData.totalBooks = books.length;
         }
 
         // Sách có stock <= 10 được coi là sắp hết hàng
         const lowStockBooksList = books
-          .filter((book: any) => (book.stock || 0) <= 10)
+          .filter((book: any) => {
+            const stock = Number(book.stock) || 0;
+            return stock <= 10;
+          })
           .map((book: any) => ({
             id: book.id,
             title: book.title,
@@ -190,9 +203,8 @@ const Dashboard = () => {
             (a: { stock: number }, b: { stock: number }) => a.stock - b.stock
           ); // Sắp xếp theo stock tăng dần
 
-        if (!statsData.lowStockBooks) {
-          statsData.lowStockBooks = lowStockBooksList.length;
-        }
+        // Luôn đếm lại lowStockBooks từ books để đảm bảo chính xác
+        statsData.lowStockBooks = lowStockBooksList.length;
         if (
           !statsData.lowStockBooksList ||
           statsData.lowStockBooksList.length === 0
@@ -202,7 +214,11 @@ const Dashboard = () => {
       }
 
       // Xử lý Users (chỉ nếu không có API tổng quan)
-      if (!statsResponse && usersResponse?.status === "fulfilled" && usersResponse.value?.data) {
+      if (
+        !statsResponse &&
+        usersResponse?.status === "fulfilled" &&
+        usersResponse.value?.data
+      ) {
         const users = usersResponse.value.data || [];
         if (!statsData.totalUsers) {
           statsData.totalUsers = users.length;
@@ -259,6 +275,7 @@ const Dashboard = () => {
       color: "bg-green-500",
       bgColor: "bg-green-50",
       textColor: "text-green-600",
+      link: "/admin/orders?status=completed",
     },
     {
       title: "Đơn hàng",
@@ -268,6 +285,7 @@ const Dashboard = () => {
       bgColor: "bg-blue-50",
       textColor: "text-blue-600",
       subtitle: `${stats?.pendingOrders || 0} chờ xử lý`,
+      link: "/admin/orders",
     },
     {
       title: "Người dùng",
@@ -276,6 +294,7 @@ const Dashboard = () => {
       color: "bg-purple-500",
       bgColor: "bg-purple-50",
       textColor: "text-purple-600",
+      link: "/admin/users",
     },
     {
       title: "Sách trong kho",
@@ -285,6 +304,7 @@ const Dashboard = () => {
       bgColor: "bg-orange-50",
       textColor: "text-orange-600",
       subtitle: `${stats?.lowStockBooks || 0} sắp hết hàng`,
+      link: "/admin/books",
     },
   ];
 
@@ -369,9 +389,10 @@ const Dashboard = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card, index) => (
-          <div
+          <Link
             key={index}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+            to={card.link}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow block"
           >
             <div className="flex items-center justify-between mb-4">
               <div
@@ -379,6 +400,10 @@ const Dashboard = () => {
               >
                 <card.icon size={24} />
               </div>
+              <ArrowRight
+                className={`${card.textColor} opacity-60 hover:opacity-100 transition-opacity`}
+                size={20}
+              />
             </div>
             <h3 className="text-gray-600 text-sm font-medium mb-1">
               {card.title}
@@ -389,51 +414,65 @@ const Dashboard = () => {
             {card.subtitle && (
               <p className="text-xs text-gray-500">{card.subtitle}</p>
             )}
-          </div>
+          </Link>
         ))}
       </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pending Orders */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <Link
+          to="/admin/orders?status=pending"
+          className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow block"
+        >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
-              Đơn hàng chờ xử lý
+              Đơn hàng chờ xác nhận
             </h2>
             <TrendingUp className="text-blue-600" size={20} />
           </div>
-          <div className="text-3xl font-bold text-blue-600 mb-2">
-            {stats?.pendingOrders || 0}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-3xl font-bold text-blue-600">
+              {stats?.pendingOrders || 0}
+            </div>
+            {(stats?.pendingOrders || 0) === 0 && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                Chưa có dữ liệu
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-600 mb-4">Cần xử lý trong hôm nay</p>
-          <a
-            href="/admin/orders"
-            className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700"
-          >
+          <div className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700">
             Xem chi tiết →
-          </a>
-        </div>
+          </div>
+        </Link>
 
         {/* Low Stock Alert */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <Link
+          to="/admin/books?lowStock=true"
+          className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow block"
+        >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
               Cảnh báo tồn kho
             </h2>
             <AlertTriangle className="text-orange-600" size={20} />
           </div>
-          <div className="text-3xl font-bold text-orange-600 mb-2">
-            {stats?.lowStockBooks || 0}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-3xl font-bold text-orange-600">
+              {stats?.lowStockBooks || 0}
+            </div>
+            {(stats?.lowStockBooks || 0) === 0 && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                Chưa có dữ liệu
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-600 mb-4">Sách sắp hết hàng</p>
-          <a
-            href="/admin/books"
-            className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700"
-          >
+          <div className="inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700">
             Quản lý kho →
-          </a>
-        </div>
+          </div>
+        </Link>
       </div>
 
       {/* Recent Orders */}
