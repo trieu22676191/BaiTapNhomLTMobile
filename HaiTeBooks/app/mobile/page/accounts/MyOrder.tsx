@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   ScrollView,
@@ -42,6 +43,9 @@ const MyOrder: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>(
     params.status || "all"
+  );
+  const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(
+    null
   );
 
   useEffect(() => {
@@ -296,6 +300,95 @@ const MyOrder: React.FC = () => {
     }
   };
 
+  const handleCancelOrder = (order: Order) => {
+    // Chỉ cho phép hủy đơn hàng ở trạng thái PENDING
+    if (order.status !== "PENDING") {
+      Alert.alert(
+        "Không thể hủy",
+        "Chỉ có thể hủy đơn hàng đang ở trạng thái 'Chờ xác nhận'."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận hủy đơn hàng",
+      `Bạn có chắc chắn muốn hủy đơn hàng #${order.id}?\n\nTổng tiền: ${formatCurrency(order.total)}`,
+      [
+        {
+          text: "Không",
+          style: "cancel",
+        },
+        {
+          text: "Có, hủy đơn",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setCancellingOrderId(order.id);
+
+              // Đảm bảo token được set
+              const token = await AsyncStorage.getItem("auth_token");
+              if (!token) {
+                Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
+                return;
+              }
+              setAuthToken(token);
+
+              // Thử nhiều cách để hủy đơn (tùy vào backend implementation)
+              try {
+                // Cách 1: PUT /orders/{id} với status CANCELLED
+                await axiosInstance.put(`/orders/${order.id}`, {
+                  status: "CANCELLED",
+                });
+              } catch (err1: any) {
+                // Cách 2: PATCH /orders/{id}/cancel
+                try {
+                  await axiosInstance.patch(`/orders/${order.id}/cancel`);
+                } catch (err2: any) {
+                  // Cách 3: PUT /orders/{id}/cancel
+                  try {
+                    await axiosInstance.put(`/orders/${order.id}/cancel`, {});
+                  } catch (err3: any) {
+                    throw err3;
+                  }
+                }
+              }
+
+              // Refresh danh sách đơn hàng để đảm bảo dữ liệu mới nhất
+              await fetchOrders();
+
+              Alert.alert(
+                "Thành công",
+                "Đơn hàng đã được hủy thành công.",
+                [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      // Tự động chuyển sang tab "Đã hủy" nếu đang ở tab "Chờ xác nhận"
+                      if (statusFilter === "PENDING") {
+                        setStatusFilter("CANCELLED");
+                      }
+                    },
+                  },
+                ]
+              );
+            } catch (error: any) {
+              console.error("Lỗi khi hủy đơn hàng:", error);
+              const errorMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Không thể hủy đơn hàng. Vui lòng thử lại.";
+
+              Alert.alert("Lỗi", errorMessage);
+            } finally {
+              setCancellingOrderId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const filteredOrders =
     statusFilter === "all"
       ? orders
@@ -312,41 +405,69 @@ const MyOrder: React.FC = () => {
 
   const renderOrderItem = ({ item }: { item: Order }) => {
     const statusInfo = getStatusInfo(item.status);
+    const isPending = item.status === "PENDING";
+    const isCancelling = cancellingOrderId === item.id;
+
     return (
-      <TouchableOpacity
-        style={styles.orderCard}
-        activeOpacity={0.7}
-        onPress={() => {
-          router.push(`/mobile/page/accounts/OrderDetail?id=${item.id}`);
-        }}
-      >
-        <View style={styles.orderHeader}>
-          <View>
-            <Text style={styles.orderId}>Đơn hàng #{item.id}</Text>
-            <Text style={styles.orderDate}>{formatDate(item.orderDate)}</Text>
+      <View style={styles.orderCard}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => {
+            router.push(`/mobile/page/accounts/OrderDetail?id=${item.id}`);
+          }}
+        >
+          <View style={styles.orderHeader}>
+            <View>
+              <Text style={styles.orderId}>Đơn hàng #{item.id}</Text>
+              <Text style={styles.orderDate}>{formatDate(item.orderDate)}</Text>
+            </View>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: statusInfo.bgColor },
+              ]}
+            >
+              <Text style={[styles.statusText, { color: statusInfo.color }]}>
+                {statusInfo.label}
+              </Text>
+            </View>
           </View>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusInfo.bgColor },
-            ]}
-          >
-            <Text style={[styles.statusText, { color: statusInfo.color }]}>
-              {statusInfo.label}
+          <View style={styles.orderBody}>
+            <Text style={styles.orderTotal}>
+              Tổng tiền: {formatCurrency(item.total)}
             </Text>
+            {item.orderItems && item.orderItems.length > 0 && (
+              <Text style={styles.orderItems}>
+                {item.orderItems.length} sản phẩm
+              </Text>
+            )}
           </View>
-        </View>
-        <View style={styles.orderBody}>
-          <Text style={styles.orderTotal}>
-            Tổng tiền: {formatCurrency(item.total)}
-          </Text>
-          {item.orderItems && item.orderItems.length > 0 && (
-            <Text style={styles.orderItems}>
-              {item.orderItems.length} sản phẩm
-            </Text>
-          )}
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+
+        {/* Nút hủy đơn - chỉ hiển thị cho đơn hàng PENDING */}
+        {isPending && (
+          <View style={styles.orderActions}>
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                isCancelling && styles.cancelButtonDisabled,
+              ]}
+              onPress={() => handleCancelOrder(item)}
+              activeOpacity={0.7}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="close-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.cancelButtonText}>Hủy đơn</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -573,6 +694,30 @@ const styles = StyleSheet.create({
   orderItems: {
     fontSize: 13,
     color: "#6B7280",
+  },
+  orderActions: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  cancelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#EF4444",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  cancelButtonDisabled: {
+    opacity: 0.6,
+  },
+  cancelButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   emptyContainer: {
     flex: 1,
