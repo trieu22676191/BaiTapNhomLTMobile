@@ -315,7 +315,9 @@ const MyOrder: React.FC = () => {
 
     Alert.alert(
       "Xác nhận hủy đơn hàng",
-      `Bạn có chắc chắn muốn hủy đơn hàng #${order.id}?\n\nTổng tiền: ${formatCurrency(order.total)}`,
+      `Bạn có chắc chắn muốn hủy đơn hàng #${
+        order.id
+      }?\n\nTổng tiền: ${formatCurrency(order.total)}`,
       [
         {
           text: "Không",
@@ -359,21 +361,17 @@ const MyOrder: React.FC = () => {
               // Refresh danh sách đơn hàng để đảm bảo dữ liệu mới nhất
               await fetchOrders();
 
-              Alert.alert(
-                "Thành công",
-                "Đơn hàng đã được hủy thành công.",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => {
-                      // Tự động chuyển sang tab "Đã hủy" nếu đang ở tab "Chờ xác nhận"
-                      if (statusFilter === "PENDING") {
-                        setStatusFilter("CANCELLED");
-                      }
-                    },
+              Alert.alert("Thành công", "Đơn hàng đã được hủy thành công.", [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    // Tự động chuyển sang tab "Đã hủy" nếu đang ở tab "Chờ xác nhận"
+                    if (statusFilter === "PENDING") {
+                      setStatusFilter("CANCELLED");
+                    }
                   },
-                ]
-              );
+                },
+              ]);
             } catch (error: any) {
               console.error("Lỗi khi hủy đơn hàng:", error);
               const errorMessage =
@@ -404,7 +402,11 @@ const MyOrder: React.FC = () => {
 
     Alert.alert(
       "Xác nhận đã nhận hàng",
-      `Bạn có chắc chắn đã nhận được hàng cho đơn hàng #${order.id}?\n\nTổng tiền: ${formatCurrency(order.total)}\n\nSau khi xác nhận, đơn hàng sẽ được chuyển sang trạng thái 'Hoàn thành'.`,
+      `Bạn có chắc chắn đã nhận được hàng cho đơn hàng #${
+        order.id
+      }?\n\nTổng tiền: ${formatCurrency(
+        order.total
+      )}\n\nSau khi xác nhận, chứng tỏ bạn đã nhận được hàng. Đơn hàng sẽ được chuyển sang trạng thái 'Hoàn thành'.`,
       [
         {
           text: "Hủy",
@@ -429,21 +431,17 @@ const MyOrder: React.FC = () => {
               // Refresh danh sách đơn hàng
               await fetchOrders();
 
-              Alert.alert(
-                "Thành công",
-                "Đã xác nhận nhận hàng thành công!",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => {
-                      // Tự động chuyển sang tab "Hoàn tất" nếu đang ở tab "Đang giao"
-                      if (statusFilter === "SHIPPING") {
-                        setStatusFilter("COMPLETED");
-                      }
-                    },
+              Alert.alert("Thành công", "Đã xác nhận nhận hàng thành công!", [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    // Tự động chuyển sang tab "Hoàn tất" nếu đang ở tab "Đang giao"
+                    if (statusFilter === "SHIPPING") {
+                      setStatusFilter("COMPLETED");
+                    }
                   },
-                ]
-              );
+                },
+              ]);
             } catch (error: any) {
               console.error("Lỗi khi xác nhận nhận hàng:", error);
               const errorMessage =
