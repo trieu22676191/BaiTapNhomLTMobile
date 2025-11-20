@@ -49,6 +49,8 @@ const OrderDetail: React.FC = () => {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (orderId) {
@@ -209,6 +211,129 @@ const OrderDetail: React.FC = () => {
     }
   };
 
+  const handleConfirmReceived = async () => {
+    if (!order || !orderId) return;
+
+    Alert.alert(
+      "Xác nhận đã nhận hàng",
+      "Bạn có chắc chắn đã nhận được hàng? Sau khi xác nhận, đơn hàng sẽ được chuyển sang trạng thái 'Hoàn thành'.",
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
+        },
+        {
+          text: "Xác nhận",
+          onPress: async () => {
+            setConfirming(true);
+            try {
+              const token = await AsyncStorage.getItem("auth_token");
+              if (!token) {
+                Alert.alert("Lỗi", "Vui lòng đăng nhập");
+                return;
+              }
+
+              setAuthToken(token);
+              await axiosInstance.put(`/orders/${orderId}`, {
+                status: "COMPLETED",
+              });
+
+              // Refresh order data
+              await fetchOrder();
+              
+              Alert.alert("Thành công", "Đã xác nhận nhận hàng thành công!");
+            } catch (error: any) {
+              console.error("❌ Lỗi khi xác nhận nhận hàng:", error);
+              Alert.alert(
+                "Lỗi",
+                error?.response?.data?.message ||
+                  "Không thể xác nhận nhận hàng. Vui lòng thử lại."
+              );
+            } finally {
+              setConfirming(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCancelOrder = () => {
+    if (!order || !orderId) return;
+
+    // Chỉ cho phép hủy đơn hàng ở trạng thái PENDING
+    if (order.status?.toUpperCase() !== "PENDING") {
+      Alert.alert(
+        "Không thể hủy",
+        "Chỉ có thể hủy đơn hàng đang ở trạng thái 'Chờ xác nhận'."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận hủy đơn hàng",
+      `Bạn có chắc chắn muốn hủy đơn hàng #${order.id}?\n\nTổng tiền: ${formatCurrency(order.total)}`,
+      [
+        {
+          text: "Không",
+          style: "cancel",
+        },
+        {
+          text: "Có, hủy đơn",
+          style: "destructive",
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              const token = await AsyncStorage.getItem("auth_token");
+              if (!token) {
+                Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
+                return;
+              }
+
+              setAuthToken(token);
+
+              // Thử nhiều cách để hủy đơn (tùy vào backend implementation)
+              try {
+                // Cách 1: PUT /orders/{id} với status CANCELLED
+                await axiosInstance.put(`/orders/${orderId}`, {
+                  status: "CANCELLED",
+                });
+              } catch (err1: any) {
+                // Cách 2: PATCH /orders/{id}/cancel
+                try {
+                  await axiosInstance.patch(`/orders/${orderId}/cancel`);
+                } catch (err2: any) {
+                  // Cách 3: PUT /orders/{id}/cancel
+                  try {
+                    await axiosInstance.put(`/orders/${orderId}/cancel`, {});
+                  } catch (err3: any) {
+                    throw err3;
+                  }
+                }
+              }
+
+              // Refresh order data
+              await fetchOrder();
+
+              Alert.alert("Thành công", "Đơn hàng đã được hủy thành công.");
+            } catch (error: any) {
+              console.error("❌ Lỗi khi hủy đơn hàng:", error);
+              const errorMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Không thể hủy đơn hàng. Vui lòng thử lại.";
+
+              Alert.alert("Lỗi", errorMessage);
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView
@@ -307,7 +432,11 @@ const OrderDetail: React.FC = () => {
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[
+          styles.contentContainer,
+          (order.status?.toUpperCase() === "SHIPPING" ||
+            order.status?.toUpperCase() === "PENDING") && { paddingBottom: 100 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Order Info */}
@@ -509,6 +638,53 @@ const OrderDetail: React.FC = () => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Action Buttons - Outside ScrollView */}
+      <SafeAreaView style={styles.actionButtonContainer} edges={["bottom"]}>
+        {/* Confirm Received Button - Only show for SHIPPING status */}
+        {order.status?.toUpperCase() === "SHIPPING" && (
+          <TouchableOpacity
+            style={[
+              styles.confirmButton,
+              confirming && styles.confirmButtonDisabled,
+            ]}
+            onPress={handleConfirmReceived}
+            disabled={confirming}
+            activeOpacity={0.8}
+          >
+            {confirming ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.confirmButtonText}>Đã nhận hàng</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Cancel Order Button - Only show for PENDING status */}
+        {order.status?.toUpperCase() === "PENDING" && (
+          <TouchableOpacity
+            style={[
+              styles.cancelButton,
+              cancelling && styles.cancelButtonDisabled,
+            ]}
+            onPress={handleCancelOrder}
+            disabled={cancelling}
+            activeOpacity={0.8}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="close-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.cancelButtonText}>Hủy đơn</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </SafeAreaView>
     </SafeAreaView>
   );
 };
@@ -554,7 +730,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 16,
   },
   card: {
     borderRadius: 12,
@@ -731,6 +907,56 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     flex: 2,
     textAlign: "right",
+  },
+  actionButtonContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  confirmButton: {
+    backgroundColor: "#10B981",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
+  },
+  confirmButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  cancelButton: {
+    backgroundColor: "#EF4444",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 8,
+    gap: 8,
+  },
+  cancelButtonDisabled: {
+    opacity: 0.6,
+  },
+  cancelButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
 

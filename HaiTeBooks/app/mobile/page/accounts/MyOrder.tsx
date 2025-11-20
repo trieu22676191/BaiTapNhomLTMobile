@@ -47,6 +47,9 @@ const MyOrder: React.FC = () => {
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(
     null
   );
+  const [confirmingOrderId, setConfirmingOrderId] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     const loadUser = async () => {
@@ -389,6 +392,76 @@ const MyOrder: React.FC = () => {
     );
   };
 
+  const handleConfirmReceived = (order: Order) => {
+    // Chỉ cho phép xác nhận đơn hàng ở trạng thái SHIPPING
+    if (order.status !== "SHIPPING") {
+      Alert.alert(
+        "Không thể xác nhận",
+        "Chỉ có thể xác nhận đơn hàng đang ở trạng thái 'Đang giao'."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận đã nhận hàng",
+      `Bạn có chắc chắn đã nhận được hàng cho đơn hàng #${order.id}?\n\nTổng tiền: ${formatCurrency(order.total)}\n\nSau khi xác nhận, đơn hàng sẽ được chuyển sang trạng thái 'Hoàn thành'.`,
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
+        },
+        {
+          text: "Xác nhận",
+          onPress: async () => {
+            setConfirmingOrderId(order.id);
+            try {
+              const token = await AsyncStorage.getItem("auth_token");
+              if (!token) {
+                Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
+                return;
+              }
+
+              setAuthToken(token);
+              await axiosInstance.put(`/orders/${order.id}`, {
+                status: "COMPLETED",
+              });
+
+              // Refresh danh sách đơn hàng
+              await fetchOrders();
+
+              Alert.alert(
+                "Thành công",
+                "Đã xác nhận nhận hàng thành công!",
+                [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      // Tự động chuyển sang tab "Hoàn tất" nếu đang ở tab "Đang giao"
+                      if (statusFilter === "SHIPPING") {
+                        setStatusFilter("COMPLETED");
+                      }
+                    },
+                  },
+                ]
+              );
+            } catch (error: any) {
+              console.error("Lỗi khi xác nhận nhận hàng:", error);
+              const errorMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                "Không thể xác nhận nhận hàng. Vui lòng thử lại.";
+
+              Alert.alert("Lỗi", errorMessage);
+            } finally {
+              setConfirmingOrderId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const filteredOrders =
     statusFilter === "all"
       ? orders
@@ -406,7 +479,9 @@ const MyOrder: React.FC = () => {
   const renderOrderItem = ({ item }: { item: Order }) => {
     const statusInfo = getStatusInfo(item.status);
     const isPending = item.status === "PENDING";
+    const isShipping = item.status === "SHIPPING";
     const isCancelling = cancellingOrderId === item.id;
+    const isConfirming = confirmingOrderId === item.id;
 
     return (
       <View style={styles.orderCard}>
@@ -462,6 +537,30 @@ const MyOrder: React.FC = () => {
                 <>
                   <Ionicons name="close-circle" size={18} color="#FFFFFF" />
                   <Text style={styles.cancelButtonText}>Hủy đơn</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Nút đã nhận hàng - chỉ hiển thị cho đơn hàng SHIPPING */}
+        {isShipping && (
+          <View style={styles.orderActions}>
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                isConfirming && styles.confirmButtonDisabled,
+              ]}
+              onPress={() => handleConfirmReceived(item)}
+              activeOpacity={0.7}
+              disabled={isConfirming}
+            >
+              {isConfirming ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                  <Text style={styles.confirmButtonText}>Đã nhận hàng</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -716,6 +815,24 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   cancelButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  confirmButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#10B981",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
+  },
+  confirmButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
