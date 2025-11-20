@@ -2,7 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import React, { useState } from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 interface BarcodeScannerProps {
   visible: boolean;
@@ -18,6 +21,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [facing, setFacing] = useState<CameraType>("back");
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const insets = useSafeAreaInsets();
 
   if (!permission) {
     // Camera permissions are still loading
@@ -73,29 +77,31 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea} edges={["top"]}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={onClose}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={28} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Quét mã vạch</Text>
-            <TouchableOpacity
-              style={styles.flipButton}
-              onPress={toggleCameraFacing}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons
-                name="camera-reverse-outline"
-                size={24}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: Math.max(insets.top, 12),
+              paddingBottom: 12,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Quét mã vạch</Text>
+          <TouchableOpacity
+            style={styles.flipButton}
+            onPress={toggleCameraFacing}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="camera-reverse-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.cameraContainer}>
           <CameraView
@@ -134,16 +140,21 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         </View>
 
         {scanned && (
-          <SafeAreaView style={styles.safeAreaBottom} edges={["bottom"]}>
-            <View style={styles.scanAgainContainer}>
-              <TouchableOpacity
-                style={styles.scanAgainButton}
-                onPress={() => setScanned(false)}
-              >
-                <Text style={styles.scanAgainText}>Quét lại</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
+          <View
+            style={[
+              styles.scanAgainContainer,
+              {
+                paddingBottom: Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.scanAgainButton}
+              onPress={() => setScanned(false)}
+            >
+              <Text style={styles.scanAgainText}>Quét lại</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </Modal>
@@ -155,24 +166,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000000",
   },
-  safeArea: {
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    zIndex: 10,
-    elevation: 10,
-  },
-  safeAreaBottom: {
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    zIndex: 10,
-    elevation: 10,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     minHeight: 56,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 10,
   },
   closeButton: {
     width: 44,
@@ -267,8 +273,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   scanAgainContainer: {
-    padding: 16,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingTop: 16,
+    paddingHorizontal: 16,
     backgroundColor: "rgba(0, 0, 0, 0.8)",
+    zIndex: 10,
+    elevation: 10,
   },
   scanAgainButton: {
     backgroundColor: "#C92127",
