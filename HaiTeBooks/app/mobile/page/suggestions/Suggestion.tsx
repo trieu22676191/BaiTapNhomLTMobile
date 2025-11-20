@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import axios from "axios";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -43,12 +44,25 @@ const Suggestion: React.FC = () => {
     number | null
   >(null);
 
+  // AbortController để cancel request cũ khi có request mới
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Tìm kiếm semantic với fallback về tìm kiếm thông thường
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       setSearchError("Vui lòng nhập từ khóa tìm kiếm");
       return;
     }
+
+    // Cancel request cũ nếu đang có request đang chạy
+    if (abortControllerRef.current) {
+      console.log("🛑 Hủy request tìm kiếm cũ");
+      abortControllerRef.current.abort();
+    }
+
+    // Tạo AbortController mới cho request này
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     setSearchLoading(true);
     setSearchError(null);
@@ -65,6 +79,7 @@ const Suggestion: React.FC = () => {
             limit: 20,
           },
           timeout: 15000, // Tăng timeout cho AI search
+          signal: abortController.signal, // Thêm signal để có thể cancel
         });
 
         console.log(
@@ -81,6 +96,16 @@ const Suggestion: React.FC = () => {
           return;
         }
       } catch (aiError: any) {
+        // Nếu request bị cancel, không cần xử lý
+        if (
+          axios.isCancel(aiError) ||
+          aiError.name === "AbortError" ||
+          abortController.signal.aborted
+        ) {
+          console.log("🛑 AI Search request đã bị hủy");
+          return;
+        }
+
         console.warn(
           "⚠️ AI Search thất bại, thử fallback:",
           aiError?.response?.status,
@@ -109,6 +134,17 @@ const Suggestion: React.FC = () => {
       );
       setSearchResults([]);
     } catch (err: any) {
+      // Nếu request bị cancel, không cần xử lý lỗi
+      if (
+        axios.isCancel(err) ||
+        err.name === "AbortError" ||
+        abortController.signal.aborted
+      ) {
+        console.log("🛑 Request đã bị hủy");
+        return;
+      }
+
+      // Xử lý lỗi khác
       console.error("❌ Lỗi khi tìm kiếm:", err);
       const status = err?.response?.status;
       const apiMessage = err?.response?.data?.message || err?.message;
@@ -128,7 +164,11 @@ const Suggestion: React.FC = () => {
       setSearchError(errorMessage);
       setSearchResults([]);
     } finally {
-      setSearchLoading(false);
+      // Chỉ set loading = false nếu request này vẫn còn active
+      if (!abortController.signal.aborted) {
+        setSearchLoading(false);
+        abortControllerRef.current = null;
+      }
     }
   };
 
