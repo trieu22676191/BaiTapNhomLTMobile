@@ -137,8 +137,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
     setLoading(true);
     const source = axios.CancelToken.source();
     try {
-      // Chỉ fetch books, không fetch reviews để giảm số lượng requests
-      // Reviews sẽ được fetch khi user mở BookDetail
       const booksResp = await axiosInstance.get<ApiBook[]>("/books", {
         timeout: 10000,
         cancelToken: source.token,
@@ -146,13 +144,46 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
 
       const booksData = booksResp.data || [];
 
-      // Không fetch reviews ở đây để tối ưu performance
-      // Set default values cho reviews
-      const booksWithReviews: BookWithReviews[] = booksData.map((book) => ({
-        ...book,
-        averageRating: 0,
-        reviewCount: 0,
-      }));
+      // Fetch reviews cho mỗi sách song song để tối ưu performance
+      const booksWithReviews = await Promise.all(
+        booksData.map(async (book) => {
+          try {
+            const reviewsResp = await axiosInstance.get<any[]>(
+              `/reviews/book/${book.id}`,
+              { cancelToken: source.token }
+            );
+            const reviews = Array.isArray(reviewsResp.data)
+              ? reviewsResp.data
+              : [];
+
+            const approvedReviews = reviews.filter((r: any) =>
+              r?.status ? r.status === "approved" : true
+            );
+
+            const reviewCount = approvedReviews.length;
+            const averageRating =
+              reviewCount > 0
+                ? approvedReviews.reduce(
+                    (acc, curr) => acc + Number(curr.rating || 0),
+                    0
+                  ) / reviewCount
+                : 0;
+
+            return {
+              ...book,
+              averageRating,
+              reviewCount,
+            };
+          } catch (reviewErr) {
+            // Nếu không fetch được reviews, set default values
+            return {
+              ...book,
+              averageRating: 0,
+              reviewCount: 0,
+            };
+          }
+        })
+      );
 
       setBooks(booksWithReviews);
     } catch (err: any) {
