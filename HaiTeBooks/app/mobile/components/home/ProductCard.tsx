@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -31,6 +31,10 @@ type BookWithReviews = ApiBook & {
   averageRating?: number;
   reviewCount?: number;
 };
+
+// Module-level cache để lưu books data
+let cachedBooks: BookWithReviews[] = [];
+let isInitialized = false;
 
 const formatPrice = (v: number) =>
   new Intl.NumberFormat("vi-VN").format(v) + " đ";
@@ -129,11 +133,19 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
   const router = useRouter();
-  const [books, setBooks] = useState<BookWithReviews[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [books, setBooks] = useState<BookWithReviews[]>(cachedBooks);
+  const [loading, setLoading] = useState<boolean>(!isInitialized);
   const [error, setError] = useState<string | null>(null);
+  const lastRefreshTrigger = useRef<number>(0);
 
-  const fetchBooks = async () => {
+  const fetchBooks = async (force: boolean = false) => {
+    // Nếu đã có cache và không force refresh, sử dụng cache
+    if (!force && isInitialized && cachedBooks.length > 0) {
+      setBooks(cachedBooks);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const source = axios.CancelToken.source();
     try {
@@ -185,6 +197,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
         })
       );
 
+      // Lưu vào cache
+      cachedBooks = booksWithReviews;
+      isInitialized = true;
       setBooks(booksWithReviews);
     } catch (err: any) {
       if (axios.isCancel(err)) return;
@@ -198,8 +213,21 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
     }
   };
 
+  // Lần đầu mount: fetch nếu chưa có cache
   useEffect(() => {
-    fetchBooks();
+    if (!isInitialized || cachedBooks.length === 0) {
+      fetchBooks(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Khi refreshTrigger thay đổi: force refresh
+  useEffect(() => {
+    if (refreshTrigger > lastRefreshTrigger.current) {
+      lastRefreshTrigger.current = refreshTrigger;
+      fetchBooks(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger]);
 
   // group books by categoryName

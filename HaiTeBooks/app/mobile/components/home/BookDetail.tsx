@@ -73,17 +73,23 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const [authUserId, setAuthUserId] = useState<number | null>(null);
   const [authUserName, setAuthUserName] = useState<string>("");
   const [isEditingReview, setIsEditingReview] = useState<boolean>(false);
+  const authUserIdRef = React.useRef<number | null>(null);
 
   useEffect(() => {
     if (!visible) return;
+    
+    let isMounted = true;
+    
     const loadAuthUser = async () => {
       try {
         // Kiểm tra token trước
         const token = await AsyncStorage.getItem("auth_token");
         if (!token) {
-          console.log("📱 BookDetail - No auth_token found");
-          setAuthUserId(null);
-          setAuthUserName("");
+          if (isMounted && authUserIdRef.current !== null) {
+            setAuthUserId(null);
+            setAuthUserName("");
+            authUserIdRef.current = null;
+          }
           return;
         }
 
@@ -96,45 +102,49 @@ const BookDetail: React.FC<BookDetailProps> = ({
           const apiUser = userResponse.data;
           const userId = apiUser?.id || apiUser?.userId;
           
-          if (userId) {
-            console.log("✅ BookDetail - User loaded from API, userId:", userId);
-            setAuthUserId(typeof userId === "number" ? userId : Number(userId));
-            setAuthUserName(
-              apiUser?.fullName || apiUser?.full_name || apiUser?.username || ""
-            );
-            
-            // Cập nhật AsyncStorage với user đầy đủ thông tin
-            const userToSave = {
-              id: userId,
-              username: apiUser?.username || "",
-              email: apiUser?.email || "",
-              full_name: apiUser?.fullName || apiUser?.full_name || "",
-              phone: apiUser?.phone || apiUser?.phoneNumber || "",
-              address: apiUser?.address || "",
-              role_id: apiUser?.role || apiUser?.role_id || "user",
-            };
-            await AsyncStorage.setItem("auth_user", JSON.stringify(userToSave));
+          if (userId && isMounted) {
+            const numUserId = typeof userId === "number" ? userId : Number(userId);
+            // Chỉ set state nếu giá trị thay đổi
+            if (authUserIdRef.current !== numUserId) {
+              setAuthUserId(numUserId);
+              setAuthUserName(
+                apiUser?.fullName || apiUser?.full_name || apiUser?.username || ""
+              );
+              authUserIdRef.current = numUserId;
+              
+              // Cập nhật AsyncStorage với user đầy đủ thông tin
+              const userToSave = {
+                id: userId,
+                username: apiUser?.username || "",
+                email: apiUser?.email || "",
+                full_name: apiUser?.fullName || apiUser?.full_name || "",
+                phone: apiUser?.phone || apiUser?.phoneNumber || "",
+                address: apiUser?.address || "",
+                role_id: apiUser?.role || apiUser?.role_id || "user",
+              };
+              await AsyncStorage.setItem("auth_user", JSON.stringify(userToSave));
+            }
             return;
           }
         } catch (apiError) {
-          console.warn("⚠️ BookDetail - Could not fetch user from API, trying AsyncStorage:", apiError);
+          // Silently fallback to AsyncStorage
         }
 
         // Fallback: lấy từ AsyncStorage
         const stored = await AsyncStorage.getItem("auth_user");
-        console.log("📱 BookDetail - Reading auth_user from storage:", stored);
-        if (stored) {
+        if (stored && isMounted) {
           const parsed = JSON.parse(stored);
-          console.log("📱 BookDetail - Parsed user data:", parsed);
           
           // Thử nhiều cách để lấy userId
           let parsedId = parsed?.id ?? parsed?.userId ?? parsed?.user_id ?? null;
           
           // Nếu id là undefined hoặc null, không set userId
           if (parsedId === undefined || parsedId === null) {
-            console.warn("⚠️ BookDetail - No userId found in user object");
-            setAuthUserId(null);
-            setAuthUserName("");
+            if (authUserIdRef.current !== null) {
+              setAuthUserId(null);
+              setAuthUserName("");
+              authUserIdRef.current = null;
+            }
             return;
           }
           
@@ -142,29 +152,42 @@ const BookDetail: React.FC<BookDetailProps> = ({
           const userId = typeof parsedId === "number" ? parsedId : Number(parsedId);
           
           if (isNaN(userId) || userId <= 0) {
-            console.warn("⚠️ BookDetail - Invalid userId:", parsedId);
-            setAuthUserId(null);
-            setAuthUserName("");
+            if (authUserIdRef.current !== null) {
+              setAuthUserId(null);
+              setAuthUserName("");
+              authUserIdRef.current = null;
+            }
             return;
           }
           
-          console.log("✅ BookDetail - Setting authUserId from storage:", userId);
-          setAuthUserId(userId);
-          setAuthUserName(
-            parsed?.full_name || parsed?.fullName || parsed?.username || ""
-          );
-        } else {
-          console.log("📱 BookDetail - No auth_user found in storage");
+          // Chỉ set state nếu giá trị thay đổi
+          if (authUserIdRef.current !== userId) {
+            setAuthUserId(userId);
+            setAuthUserName(
+              parsed?.full_name || parsed?.fullName || parsed?.username || ""
+            );
+            authUserIdRef.current = userId;
+          }
+        } else if (isMounted && authUserIdRef.current !== null) {
           setAuthUserId(null);
           setAuthUserName("");
+          authUserIdRef.current = null;
         }
       } catch (err) {
         console.error("❌ BookDetail - Error reading user info:", err);
-        setAuthUserId(null);
-        setAuthUserName("");
+        if (isMounted && authUserIdRef.current !== null) {
+          setAuthUserId(null);
+          setAuthUserName("");
+          authUserIdRef.current = null;
+        }
       }
     };
+    
     loadAuthUser();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [visible]);
 
   useEffect(() => {
@@ -200,10 +223,6 @@ const BookDetail: React.FC<BookDetailProps> = ({
   useEffect(() => {
     syncUserReview(allReviews);
   }, [allReviews, syncUserReview]);
-
-  useEffect(() => {
-    console.log("🔍 BookDetail - authUserId changed:", authUserId, "type:", typeof authUserId);
-  }, [authUserId]);
 
   const topReviews = useMemo(() => {
     if (!reviews || reviews.length === 0) return [];
