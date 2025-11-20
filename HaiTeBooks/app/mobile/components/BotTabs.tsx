@@ -63,7 +63,8 @@ const BotTabs: React.FC<BotTabsProps> = ({
   useEffect(() => {
     if (pathname === "/") {
       setCurrentTab("home");
-    } else if (pathname === "/account") {
+    } else if (pathname === "/account" || pathname.startsWith("/mobile/page/accounts/")) {
+      // Nhận diện trang account và tất cả các trang con (MyOrder, OrderDetail, Voucher, etc.)
       setCurrentTab("account");
     } else if (pathname === "/cart" || pathname === "/mobile/page/carts/Cart") {
       setCurrentTab("cart");
