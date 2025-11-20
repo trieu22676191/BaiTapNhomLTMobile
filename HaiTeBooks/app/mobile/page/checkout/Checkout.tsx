@@ -509,8 +509,11 @@ const Checkout: React.FC = () => {
                   {
                     text: "OK",
                     onPress: () => {
-                      // Về trang account để xem đơn hàng mới ở mục "Đang xử lý"
-                      router.replace("/account");
+                      // Chuyển đến trang "Đơn hàng của tôi" với tab "Chờ xác nhận"
+                      router.push({
+                        pathname: "/mobile/page/accounts/MyOrder",
+                        params: { status: "PENDING" },
+                      });
                     },
                   },
                 ]

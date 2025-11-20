@@ -51,7 +51,10 @@ const VNPayReturn: React.FC = () => {
   // Tự động redirect khi countdown về 0
   useEffect(() => {
     if (status === "success" && countdown === 0) {
-      router.replace("/account");
+      router.push({
+        pathname: "/mobile/page/accounts/MyOrder",
+        params: { status: "PENDING" },
+      });
     }
   }, [countdown, status, router]);
 
@@ -101,7 +104,16 @@ const VNPayReturn: React.FC = () => {
         Alert.alert(
           "Thanh toán thành công!",
           `Đơn hàng #${orderId} đã được thanh toán thành công.`,
-          [{ text: "Xem đơn hàng", onPress: () => router.replace("/account") }]
+          [
+            {
+              text: "Xem đơn hàng",
+              onPress: () =>
+                router.push({
+                  pathname: "/mobile/page/accounts/MyOrder",
+                  params: { status: "PENDING" },
+                }),
+            },
+          ]
         );
       }
     } catch (error) {
@@ -191,7 +203,11 @@ const VNPayReturn: React.FC = () => {
                 [
                   {
                     text: "Xem đơn hàng",
-                    onPress: () => router.replace("/account"),
+                    onPress: () =>
+                      router.push({
+                        pathname: "/mobile/page/accounts/MyOrder",
+                        params: { status: "PENDING" },
+                      }),
                   },
                 ]
               );
@@ -256,7 +272,11 @@ const VNPayReturn: React.FC = () => {
                 [
                   {
                     text: "Xem đơn hàng",
-                    onPress: () => router.replace("/account"),
+                    onPress: () =>
+                      router.push({
+                        pathname: "/mobile/page/accounts/MyOrder",
+                        params: { status: "PENDING" },
+                      }),
                   },
                 ]
               );
@@ -295,7 +315,16 @@ const VNPayReturn: React.FC = () => {
         Alert.alert(
           "Thanh toán thành công!",
           "Đơn hàng của bạn đã được thanh toán thành công.",
-          [{ text: "Xem đơn hàng", onPress: () => router.replace("/account") }]
+          [
+            {
+              text: "Xem đơn hàng",
+              onPress: () =>
+                router.push({
+                  pathname: "/mobile/page/accounts/MyOrder",
+                  params: { status: "PENDING" },
+                }),
+            },
+          ]
         );
       } else {
         // Thanh toán thất bại
@@ -347,7 +376,12 @@ const VNPayReturn: React.FC = () => {
             )}
             <TouchableOpacity
               style={styles.button}
-              onPress={() => router.replace("/account")}
+              onPress={() =>
+                router.push({
+                  pathname: "/mobile/page/accounts/MyOrder",
+                  params: { status: "PENDING" },
+                })
+              }
             >
               <Text style={styles.buttonText}>Xem đơn hàng ngay</Text>
             </TouchableOpacity>
