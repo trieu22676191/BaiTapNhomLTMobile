@@ -1,5 +1,5 @@
 import { CheckCircle, Clock, Star, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axiosInstance from "../config/axios";
 import { Review } from "../types";
 
@@ -9,6 +9,23 @@ const Reviews = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"user" | "book" | "all">("all");
   const [inputId, setInputId] = useState("");
+
+  // Tự động load dữ liệu khi component mount
+  useEffect(() => {
+    const loadInitialReviews = async () => {
+      setLoading(true);
+      try {
+        const response = await axiosInstance.get(`/reviews`);
+        setReviews(response.data || []);
+      } catch (error) {
+        console.error("Lỗi khi tải đánh giá:", error);
+        setReviews([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInitialReviews();
+  }, []);
 
   const fetchReviews = async () => {
     if (!inputId && viewMode !== "all") {

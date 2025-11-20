@@ -40,12 +40,20 @@ export interface Order {
   userId: number;
   userName?: string;
   userEmail?: string;
+  userPhone?: string;
   totalAmount: number;
   status: 'pending' | 'processing' | 'shipping' | 'completed' | 'cancelled';
   paymentMethod?: string;
   shippingAddress?: string;
   note?: string;
   items?: OrderItem[];
+  appliedPromotion?: {
+    id: number;
+    code: string;
+    discountPercent: number;
+    name: string;
+    maxDiscountAmount?: number | null;
+  };
   createdAt: string;
   updatedAt?: string;
 }
@@ -102,6 +110,7 @@ export interface Promotion {
   endDate: string;
   quantity: number;
   minimumOrderAmount?: number | null; // Giá trị đơn hàng tối thiểu (VND)
+  maxDiscountAmount?: number | null; // Giảm tối đa bao nhiêu tiền (VND)
   isActive: boolean;
   createdByUserId?: number;
   approvedByUserId?: number;

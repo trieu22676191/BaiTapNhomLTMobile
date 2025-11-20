@@ -46,6 +46,7 @@ const Checkout: React.FC = () => {
     discountPercent: number;
     name: string;
     minimumOrderAmount?: number | null;
+    maxDiscountAmount?: number | null;
   } | null>(null);
   const [validatingPromotion, setValidatingPromotion] = useState(false);
   const [promotionError, setPromotionError] = useState("");
@@ -55,7 +56,7 @@ const Checkout: React.FC = () => {
     fullName: "",
     phone: "",
     address: "",
-    paymentMethod: "cod" as "cod" | "vnpay",
+    paymentMethod: "cash" as "cash" | "vnpay",
     note: "",
   });
 
@@ -169,7 +170,7 @@ const Checkout: React.FC = () => {
         fullName: finalFullName,
         phone: finalPhone,
         address: finalAddress,
-        paymentMethod: "cod",
+        paymentMethod: "cash",
         note: "",
       });
 
@@ -211,8 +212,16 @@ const Checkout: React.FC = () => {
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
 
   // Tính tổng tiền sau khi áp dụng giảm giá
+  // Áp dụng maxDiscountAmount nếu có
   const discountAmount = appliedPromotion
-    ? (subtotal * appliedPromotion.discountPercent) / 100
+    ? (() => {
+        const calculatedDiscount = (subtotal * appliedPromotion.discountPercent) / 100;
+        // Nếu có maxDiscountAmount và calculatedDiscount vượt quá, thì dùng maxDiscountAmount
+        if (appliedPromotion.maxDiscountAmount != null && calculatedDiscount > appliedPromotion.maxDiscountAmount) {
+          return appliedPromotion.maxDiscountAmount;
+        }
+        return calculatedDiscount;
+      })()
     : 0;
   const totalPrice = subtotal - discountAmount;
 
@@ -246,6 +255,7 @@ const Checkout: React.FC = () => {
           discountPercent: response.data.discountPercent,
           name: response.data.name,
           minimumOrderAmount: response.data.minimumOrderAmount || null,
+          maxDiscountAmount: response.data.maxDiscountAmount || null,
         };
 
         // Kiểm tra điều kiện giá trị đơn hàng tối thiểu
@@ -810,25 +820,25 @@ const Checkout: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.paymentOption,
-              formData.paymentMethod === "cod" && styles.paymentOptionSelected,
+              formData.paymentMethod === "cash" && styles.paymentOptionSelected,
             ]}
             onPress={() =>
-              setFormData((prev) => ({ ...prev, paymentMethod: "cod" }))
+              setFormData((prev) => ({ ...prev, paymentMethod: "cash" }))
             }
           >
             <View style={styles.paymentOptionLeft}>
               <View
                 style={[
                   styles.radio,
-                  formData.paymentMethod === "cod" && styles.radioSelected,
+                  formData.paymentMethod === "cash" && styles.radioSelected,
                 ]}
               >
-                {formData.paymentMethod === "cod" && (
+                {formData.paymentMethod === "cash" && (
                   <View style={styles.radioInner} />
                 )}
               </View>
               <Text style={styles.paymentOptionText}>
-                Thanh toán khi nhận hàng (COD)
+                Thanh toán khi nhận hàng (CASH)
               </Text>
             </View>
             <Ionicons name="cash-outline" size={24} color="#C92127" />

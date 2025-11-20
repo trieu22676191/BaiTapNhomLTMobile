@@ -28,7 +28,7 @@ const OrderDetail = () => {
       const orderData = response.data;
 
       // Fetch payment records để lấy paymentMethod
-      let paymentMethod = orderData.paymentMethod || "COD";
+      let paymentMethod = orderData.paymentMethod || "CASH";
       try {
         const paymentResponse = await axiosInstance.get(`/payments/order/${id}`);
         const payments = paymentResponse.data || [];
@@ -40,8 +40,20 @@ const OrderDetail = () => {
           }
         }
       } catch (paymentError) {
-        // Nếu không fetch được payment, dùng paymentMethod từ order hoặc mặc định COD
+        // Nếu không fetch được payment, dùng paymentMethod từ order hoặc mặc định CASH
         console.log("Không thể fetch payment records, dùng paymentMethod từ order");
+      }
+
+      // Fetch thông tin user để lấy số điện thoại nếu chưa có
+      let userPhone = orderData.userPhone || orderData.user?.phone || orderData.user?.phoneNumber;
+      if (!userPhone && orderData.userId) {
+        try {
+          const userResponse = await axiosInstance.get(`/users/${orderData.userId}`);
+          const userData = userResponse.data;
+          userPhone = userData.phone || userData.phoneNumber || userData.sdt || null;
+        } catch (userError) {
+          console.log("Không thể fetch thông tin user để lấy số điện thoại");
+        }
       }
 
       // Normalize dữ liệu giống như trong Orders.tsx
@@ -63,8 +75,17 @@ const OrderDetail = () => {
           orderData.user?.full_name ||
           orderData.userName,
         userEmail: orderData.user?.email || orderData.userEmail,
-        // Map paymentMethod - ưu tiên từ payment records, sau đó từ order, cuối cùng là COD
+        userPhone: userPhone,
+        // Map paymentMethod - ưu tiên từ payment records, sau đó từ order, cuối cùng là CASH
         paymentMethod: paymentMethod,
+        // Map appliedPromotion nếu có
+        appliedPromotion: orderData.appliedPromotion ? {
+          id: orderData.appliedPromotion.id,
+          code: orderData.appliedPromotion.code,
+          discountPercent: orderData.appliedPromotion.discountPercent,
+          name: orderData.appliedPromotion.name,
+          maxDiscountAmount: orderData.appliedPromotion.maxDiscountAmount || null,
+        } : undefined,
       };
 
       setOrder(normalizedOrder);
@@ -220,8 +241,40 @@ const OrderDetail = () => {
                   </div>
                 ))}
               </div>
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="flex justify-between items-center">
+              <div className="mt-6 pt-4 border-t border-gray-200 space-y-2">
+                {order.appliedPromotion && order.items && (() => {
+                  const subtotal = order.items.reduce(
+                    (sum, item) => sum + item.price * item.quantity,
+                    0
+                  );
+                  const calculatedDiscount = (subtotal * order.appliedPromotion!.discountPercent) / 100;
+                  const discountAmount = order.appliedPromotion.maxDiscountAmount != null && calculatedDiscount > order.appliedPromotion.maxDiscountAmount
+                    ? order.appliedPromotion.maxDiscountAmount
+                    : calculatedDiscount;
+                  
+                  return (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Tạm tính:</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {formatCurrency(subtotal)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="text-sm text-gray-600">Khuyến mãi: </span>
+                          <span className="text-sm font-medium text-green-600">
+                            {order.appliedPromotion.code} (-{order.appliedPromotion.discountPercent}%)
+                          </span>
+                        </div>
+                        <span className="text-sm font-semibold text-green-600">
+                          -{formatCurrency(discountAmount)}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                   <span className="text-lg font-semibold text-gray-900">
                     Tổng cộng:
                   </span>
@@ -236,6 +289,25 @@ const OrderDetail = () => {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Update Status - Di chuyển lên đầu để dễ thao tác */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Cập nhật trạng thái
+            </h3>
+            <select
+              value={order.status}
+              onChange={(e) => handleUpdateStatus(e.target.value)}
+              disabled={updating}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50"
+            >
+              <option value="pending">Chờ xác nhận</option>
+              <option value="processing">Đang xử lý</option>
+              <option value="shipping">Đang giao</option>
+              <option value="completed">Hoàn thành</option>
+              <option value="cancelled">Đã hủy</option>
+            </select>
+          </div>
+
           {/* Customer Info */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -253,6 +325,12 @@ const OrderDetail = () => {
                 <p className="text-sm text-gray-600">Email</p>
                 <p className="font-medium text-gray-900">
                   {order.userEmail || "N/A"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Số điện thoại</p>
+                <p className="font-medium text-gray-900">
+                  {order.userPhone || "Chưa có"}
                 </p>
               </div>
             </div>
@@ -275,7 +353,7 @@ const OrderDetail = () => {
               <CreditCard className="mr-2" size={20} />
               Phương thức thanh toán
             </h3>
-            <p className="text-gray-900">{order.paymentMethod || "COD"}</p>
+            <p className="text-gray-900">{order.paymentMethod || "CASH"}</p>
           </div>
 
           {/* Customer Note */}
@@ -289,25 +367,6 @@ const OrderDetail = () => {
                 {order.note || "Không có ghi chú"}
               </p>
             </div>
-          </div>
-
-          {/* Update Status */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Cập nhật trạng thái
-            </h3>
-            <select
-              value={order.status}
-              onChange={(e) => handleUpdateStatus(e.target.value)}
-              disabled={updating}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50"
-            >
-              <option value="pending">Chờ xác nhận</option>
-              <option value="processing">Đang xử lý</option>
-              <option value="shipping">Đang giao</option>
-              <option value="completed">Hoàn thành</option>
-              <option value="cancelled">Đã hủy</option>
-            </select>
           </div>
         </div>
       </div>

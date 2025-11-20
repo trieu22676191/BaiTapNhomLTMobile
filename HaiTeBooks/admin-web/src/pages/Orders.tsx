@@ -81,7 +81,7 @@ const Orders = () => {
       console.log(`✅ Received ${ordersData.length} orders from backend`);
 
       // Backend trả về OrderResponse với format:
-      // { id, userId, userName, userEmail, total, status, orderDate, address, note, items }
+      // { id, userId, userName, userEmail, total, status, orderDate, address, note, items, appliedPromotion }
       // Status từ backend là UPPERCASE (PENDING, PROCESSING, etc.)
       const normalizedOrders = ordersData.map((order: any) => {
         const normalized = {
@@ -96,10 +96,19 @@ const Orders = () => {
           userName:
             order.userName || order.user?.username || order.user?.full_name,
           userEmail: order.userEmail || order.user?.email,
+          userPhone: order.userPhone || order.user?.phone || order.user?.phoneNumber,
           // Map shippingAddress từ address
           shippingAddress: order.address || order.shippingAddress,
-          // Map paymentMethod - mặc định COD (backend không có trong OrderResponse)
-          paymentMethod: order.paymentMethod || "COD",
+          // Map paymentMethod - mặc định CASH (backend enum: CASH | VNPAY, không có COD)
+          paymentMethod: order.paymentMethod || "CASH",
+          // Map appliedPromotion nếu có
+          appliedPromotion: order.appliedPromotion ? {
+            id: order.appliedPromotion.id,
+            code: order.appliedPromotion.code,
+            discountPercent: order.appliedPromotion.discountPercent,
+            name: order.appliedPromotion.name,
+            maxDiscountAmount: order.appliedPromotion.maxDiscountAmount || null,
+          } : undefined,
         };
         return normalized;
       });
@@ -350,6 +359,9 @@ const Orders = () => {
                   Ngày đặt
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Khuyến mãi
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tổng tiền
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -364,7 +376,7 @@ const Orders = () => {
               {filteredOrders.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-8 text-center text-gray-500"
                   >
                     Không có đơn hàng nào
@@ -374,6 +386,20 @@ const Orders = () => {
                 filteredOrders.map((order) => {
                   const statusInfo = getStatusInfo(order.status);
                   const StatusIcon = statusInfo.icon;
+                  
+                  // Tính tiền giảm từ appliedPromotion
+                  let discountAmount = 0;
+                  if (order.appliedPromotion && order.items) {
+                    const subtotal = order.items.reduce(
+                      (sum, item) => sum + item.price * item.quantity,
+                      0
+                    );
+                    const calculatedDiscount = (subtotal * order.appliedPromotion.discountPercent) / 100;
+                    discountAmount = order.appliedPromotion.maxDiscountAmount != null && calculatedDiscount > order.appliedPromotion.maxDiscountAmount
+                      ? order.appliedPromotion.maxDiscountAmount
+                      : calculatedDiscount;
+                  }
+                  
                   return (
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -388,11 +414,30 @@ const Orders = () => {
                         <div className="text-xs text-gray-500">
                           {order.userEmail || ""}
                         </div>
+                        {order.userPhone && (
+                          <div className="text-xs text-gray-500">
+                            {order.userPhone}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
                           {formatDate(order.createdAt)}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {order.appliedPromotion ? (
+                          <div>
+                            <div className="text-sm font-medium text-green-600">
+                              {order.appliedPromotion.code}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              -{formatCurrency(discountAmount)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-400">Không có</div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-gray-900">

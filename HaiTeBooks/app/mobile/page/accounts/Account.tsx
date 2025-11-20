@@ -190,8 +190,23 @@ const Account: React.FC = () => {
         }).length;
 
       setVoucherCount(activeCount);
-    } catch (error) {
-      console.error("Error fetching voucher count:", error);
+    } catch (error: any) {
+      // Xử lý lỗi một cách graceful - không crash app
+      const errorMessage = 
+        error?.response?.data?.message ||
+        error?.message ||
+        error?.response?.statusText ||
+        "Unknown error";
+      const statusCode = error?.response?.status;
+      
+      console.error("Error fetching voucher count:", {
+        message: errorMessage,
+        status: statusCode,
+        error: error,
+      });
+      
+      // Với lỗi 502 (Bad Gateway), có thể là backend tạm thời không khả dụng
+      // Set về 0 và không hiển thị badge
       setVoucherCount(0);
     }
   }, []);
@@ -362,13 +377,6 @@ const Account: React.FC = () => {
             >
               <View style={styles.orderIcon}>
                 <Ionicons name="wallet-outline" size={24} color="#111827" />
-                {orderCounts.pending > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.pending}
-                    </Text>
-                  </View>
-                )}
               </View>
               <Text style={styles.orderLabel}>Chờ xác nhận</Text>
             </TouchableOpacity>
@@ -380,13 +388,6 @@ const Account: React.FC = () => {
             >
               <View style={styles.orderIcon}>
                 <Ionicons name="cube-outline" size={24} color="#111827" />
-                {orderCounts.processing > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.processing}
-                    </Text>
-                  </View>
-                )}
               </View>
               <Text style={styles.orderLabel}>Đang xử lý</Text>
             </TouchableOpacity>
@@ -398,13 +399,6 @@ const Account: React.FC = () => {
             >
               <View style={styles.orderIcon}>
                 <Ionicons name="car-outline" size={24} color="#111827" />
-                {orderCounts.shipping > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.shipping}
-                    </Text>
-                  </View>
-                )}
               </View>
               <Text style={styles.orderLabel}>Đang giao hàng</Text>
             </TouchableOpacity>
@@ -420,13 +414,6 @@ const Account: React.FC = () => {
                   size={24}
                   color="#111827"
                 />
-                {orderCounts.completed > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.completed}
-                    </Text>
-                  </View>
-                )}
               </View>
               <Text style={styles.orderLabel}>Hoàn tất</Text>
             </TouchableOpacity>
@@ -442,13 +429,6 @@ const Account: React.FC = () => {
                   size={24}
                   color="#111827"
                 />
-                {orderCounts.cancelled > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.cancelled}
-                    </Text>
-                  </View>
-                )}
               </View>
               <Text style={styles.orderLabel}>Đã huỷ</Text>
             </TouchableOpacity>

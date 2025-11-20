@@ -37,6 +37,7 @@ interface Order {
     code: string;
     discountPercent: number;
     name: string;
+    maxDiscountAmount?: number | null;
   };
 }
 
@@ -99,6 +100,7 @@ const OrderDetail: React.FC = () => {
               code: orderData.appliedPromotion.code,
               discountPercent: orderData.appliedPromotion.discountPercent,
               name: orderData.appliedPromotion.name,
+              maxDiscountAmount: orderData.appliedPromotion.maxDiscountAmount || null,
             }
           : undefined,
       };
@@ -269,14 +271,22 @@ const OrderDetail: React.FC = () => {
       (sum, item) => sum + item.price * item.quantity,
       0
     ) || 0;
+  
+  // Tính discount amount với maxDiscountAmount (giống backend)
   const discountAmount = order.appliedPromotion
-    ? (subtotal * order.appliedPromotion.discountPercent) / 100
+    ? (() => {
+        const calculatedDiscount = (subtotal * order.appliedPromotion!.discountPercent) / 100;
+        // Nếu có maxDiscountAmount và calculatedDiscount vượt quá, thì dùng maxDiscountAmount
+        if (order.appliedPromotion!.maxDiscountAmount != null && calculatedDiscount > order.appliedPromotion!.maxDiscountAmount) {
+          return order.appliedPromotion!.maxDiscountAmount;
+        }
+        return calculatedDiscount;
+      })()
     : 0;
-  // Tính lại total từ subtotal - discountAmount nếu có promotion
-  // Vì backend có thể không tính lại total đúng cách
-  const finalTotal = order.appliedPromotion
-    ? subtotal - discountAmount
-    : order.total;
+  
+  // Dùng order.total từ backend vì backend đã tính đúng với maxDiscountAmount
+  // Chỉ tính lại để hiển thị discount amount, nhưng finalTotal dùng từ backend
+  const finalTotal = order.total;
 
   return (
     <SafeAreaView
@@ -426,8 +436,8 @@ const OrderDetail: React.FC = () => {
           </Text>
           {order.orderItems && order.orderItems.length > 0 ? (
             <View style={styles.itemsContainer}>
-              {order.orderItems.map((item) => (
-                <View key={item.id} style={styles.itemRow}>
+              {order.orderItems.map((item, index) => (
+                <View key={item.id || `item-${item.bookId}-${index}`} style={styles.itemRow}>
                   <View style={styles.itemInfo}>
                     <Text style={[styles.itemTitle, { color: colors.text }]}>
                       {item.bookTitle || `Sách #${item.bookId}`}

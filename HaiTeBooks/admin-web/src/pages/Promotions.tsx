@@ -30,6 +30,7 @@ const Promotions = () => {
     endDate: "",
     quantity: 0,
     minimumOrderAmount: "" as string | number,
+    maxDiscountAmount: "" as string | number,
   });
 
   // Helper function để xác định status hiện tại
@@ -73,6 +74,7 @@ const Promotions = () => {
         endDate: promo.endDate,
         quantity: promo.quantity,
         minimumOrderAmount: promo.minimumOrderAmount || null,
+        maxDiscountAmount: promo.maxDiscountAmount || null,
         isActive:
           promo.isActive !== undefined
             ? promo.isActive
@@ -209,6 +211,12 @@ const Promotions = () => {
           formData.minimumOrderAmount === undefined
             ? null
             : Number(formData.minimumOrderAmount) || null,
+        maxDiscountAmount:
+          formData.maxDiscountAmount === "" ||
+          formData.maxDiscountAmount === null ||
+          formData.maxDiscountAmount === undefined
+            ? null
+            : Number(formData.maxDiscountAmount) || null,
       };
 
       console.log(
@@ -380,6 +388,7 @@ const Promotions = () => {
       endDate: promotion.endDate,
       quantity: promotion.quantity,
       minimumOrderAmount: promotion.minimumOrderAmount || "",
+      maxDiscountAmount: promotion.maxDiscountAmount || "",
     });
     setShowModal(true);
   };
@@ -395,6 +404,7 @@ const Promotions = () => {
       endDate: "",
       quantity: 0,
       minimumOrderAmount: "",
+      maxDiscountAmount: "",
     });
   };
 
@@ -834,34 +844,66 @@ const Promotions = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Giá trị đơn hàng tối thiểu (VND)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={
-                    formData.minimumOrderAmount === "" ||
-                    formData.minimumOrderAmount === null ||
-                    formData.minimumOrderAmount === undefined
-                      ? ""
-                      : formData.minimumOrderAmount
-                  }
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData({
-                      ...formData,
-                      minimumOrderAmount:
-                        value === "" ? "" : parseInt(value) || "",
-                    });
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Để trống nếu không có điều kiện"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Khuyến mãi chỉ áp dụng khi đơn hàng đạt giá trị tối thiểu này. Để trống nếu không có điều kiện.
-                </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Giá trị đơn hàng tối thiểu (VND)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={
+                      formData.minimumOrderAmount === "" ||
+                      formData.minimumOrderAmount === null ||
+                      formData.minimumOrderAmount === undefined
+                        ? ""
+                        : formData.minimumOrderAmount
+                    }
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({
+                        ...formData,
+                        minimumOrderAmount:
+                          value === "" ? "" : parseInt(value) || "",
+                      });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Để trống nếu không có điều kiện"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Đơn hàng phải đạt giá trị tối thiểu này
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Giảm tối đa (VND)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={
+                      formData.maxDiscountAmount === "" ||
+                      formData.maxDiscountAmount === null ||
+                      formData.maxDiscountAmount === undefined
+                        ? ""
+                        : formData.maxDiscountAmount
+                    }
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({
+                        ...formData,
+                        maxDiscountAmount:
+                          value === "" ? "" : parseInt(value) || "",
+                      });
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Để trống nếu không giới hạn"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Số tiền giảm tối đa khi áp dụng mã này
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
