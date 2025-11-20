@@ -28,6 +28,8 @@ interface Notification {
   receiverId: number;
 }
 
+type TabType = "unread" | "read";
+
 const Notification: React.FC = () => {
   const { colors } = useTheme();
   const router = useRouter();
@@ -35,6 +37,7 @@ const Notification: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("unread");
 
   // Load user từ AsyncStorage
   useEffect(() => {
@@ -346,8 +349,20 @@ const Notification: React.FC = () => {
     );
   };
 
-  // Render empty state
-  const renderEmpty = () => {
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const readCount = notifications.filter((n) => n.isRead).length;
+
+  // Filter notifications theo tab
+  const filteredNotifications = notifications.filter((noti) => {
+    if (activeTab === "unread") {
+      return !noti.isRead;
+    } else {
+      return noti.isRead;
+    }
+  });
+
+  // Render empty state với message phù hợp theo tab
+  const renderEmptyForTab = () => {
     if (loading) {
       return (
         <View style={styles.emptyContainer}>
@@ -382,13 +397,13 @@ const Notification: React.FC = () => {
           color={colors.textSecondary}
         />
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          Không có thông báo nào
+          {activeTab === "unread"
+            ? "Không có thông báo chưa đọc"
+            : "Không có thông báo đã đọc"}
         </Text>
       </View>
     );
   };
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <SafeAreaView
@@ -397,31 +412,73 @@ const Notification: React.FC = () => {
     >
       {/* Header */}
       <View style={styles.header}>
+        <View style={styles.headerLeft} />
         <Text style={styles.headerTitle}>Thông báo</Text>
-        {unreadCount > 0 && (
+        <View style={styles.headerRight} />
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabSection}>
+        <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={styles.markAllButton}
-            onPress={handleMarkAllAsRead}
+            style={[styles.tab, activeTab === "unread" && styles.tabActive]}
+            onPress={() => setActiveTab("unread")}
           >
-            <Text style={styles.markAllText}>Đánh dấu tất cả đã đọc</Text>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "unread" && styles.tabTextActive,
+              ]}
+            >
+              Chưa đọc
+            </Text>
+            {unreadCount > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "read" && styles.tabActive]}
+            onPress={() => setActiveTab("read")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "read" && styles.tabTextActive,
+              ]}
+            >
+              Đã đọc
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {/* Nút đánh dấu tất cả đã đọc - chỉ hiển thị ở tab Chưa đọc */}
+        {activeTab === "unread" && unreadCount > 0 && (
+          <View style={styles.markAllContainer}>
+            <TouchableOpacity
+              style={styles.markAllButton}
+              onPress={handleMarkAllAsRead}
+            >
+              <Text style={styles.markAllText}>Đánh dấu tất cả đã đọc</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
       {/* Content */}
       {loading && notifications.length === 0 ? (
-        renderEmpty()
+        renderEmptyForTab()
       ) : (
         <FlatList
-          data={notifications}
+          data={filteredNotifications}
           renderItem={renderNotificationItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={
-            notifications.length === 0
+            filteredNotifications.length === 0
               ? styles.listContentEmpty
               : styles.listContent
           }
-          ListEmptyComponent={renderEmpty}
+          ListEmptyComponent={renderEmptyForTab}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -448,18 +505,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  headerLeft: {
+    width: 40,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: "#FFFFFF",
+    flex: 1,
+    textAlign: "center",
+  },
+  headerRight: {
+    width: 40,
+  },
+  tabSection: {
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  markAllContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
   markAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    alignItems: "center",
   },
   markAllText: {
-    fontSize: 12,
-    color: "#FFFFFF",
+    fontSize: 13,
+    color: "#C92127",
     fontWeight: "600",
   },
   listContent: {
@@ -537,6 +613,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 16,
     textAlign: "center",
+  },
+  tabContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+    gap: 8,
+  },
+  tabActive: {
+    borderBottomColor: "#C92127",
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  tabTextActive: {
+    color: "#C92127",
+    fontWeight: "700",
+  },
+  tabBadge: {
+    backgroundColor: "#C92127",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tabBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });
 
