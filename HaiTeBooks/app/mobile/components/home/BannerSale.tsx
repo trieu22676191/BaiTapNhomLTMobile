@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
@@ -7,6 +8,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   StyleSheet,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -31,6 +33,7 @@ const BannerSale: React.FC<BannerSaleProps> = ({
   autoPlayInterval = 3000,
   height = 200,
 }) => {
+  const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -124,18 +127,26 @@ const BannerSale: React.FC<BannerSaleProps> = ({
     if (!item.imageUrl || item.imageUrl.trim() === "") {
       return (
         <View style={styles.bannerItemContainer}>
-          <View style={[styles.bannerItem, { height }]}>
+          <TouchableOpacity
+            style={[styles.bannerItem, { height }]}
+            activeOpacity={0.9}
+            onPress={() => router.push("/mobile/page/accounts/Voucher")}
+          >
             <View style={styles.placeholder}>
               <Ionicons name="image-outline" size={48} color="#C92127" />
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       );
     }
 
     return (
       <View style={styles.bannerItemContainer}>
-        <View style={[styles.bannerItem, { height }]}>
+        <TouchableOpacity
+          style={[styles.bannerItem, { height }]}
+          activeOpacity={0.9}
+          onPress={() => router.push("/mobile/page/accounts/Voucher")}
+        >
           <Image
             source={{ uri: item.imageUrl }}
             style={[styles.bannerImage, { height }]}
@@ -144,7 +155,7 @@ const BannerSale: React.FC<BannerSaleProps> = ({
               console.log("Banner image load error:", item.imageUrl);
             }}
           />
-        </View>
+        </TouchableOpacity>
       </View>
     );
   };
