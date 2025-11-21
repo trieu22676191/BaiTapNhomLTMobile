@@ -390,6 +390,16 @@ const CategoryBooks: React.FC = () => {
           setSimilarBookId(null);
           setSimilarBookTitle("");
         }}
+        onBookClick={(bookId) => {
+          // Đóng SimilarBooksModal
+          setShowSimilarBooks(false);
+          setSimilarBookId(null);
+          setSimilarBookTitle("");
+          // Mở BookDetail với bookId được chọn
+          setTimeout(() => {
+            setSelectedBookId(bookId);
+          }, 300);
+        }}
       />
 
       {/* Barcode Scanner Modal */}

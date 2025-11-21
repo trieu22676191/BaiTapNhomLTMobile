@@ -42,6 +42,7 @@ const formatPrice = (v: number) =>
 
 const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
   const [showBookDetail, setShowBookDetail] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
   const [showSimilarBooks, setShowSimilarBooks] = useState(false);
   const [similarBookId, setSimilarBookId] = useState<number | null>(null);
   const [similarBookTitle, setSimilarBookTitle] = useState<string>("");
@@ -62,7 +63,10 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
-        onPress={() => setShowBookDetail(true)}
+        onPress={() => {
+          setSelectedBookId(item.id);
+          setShowBookDetail(true);
+        }}
       >
         <View style={styles.imageWrap}>
           <Image
@@ -147,13 +151,17 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
 
       <BookDetail
         visible={showBookDetail}
-        bookId={item.id}
-        onClose={() => setShowBookDetail(false)}
+        bookId={selectedBookId || item.id}
+        onClose={() => {
+          setShowBookDetail(false);
+          setSelectedBookId(null);
+        }}
         onShowSimilarBooks={(bookId, bookTitle) => {
           console.log("🔍 ProductCard: onShowSimilarBooks called", { bookId, bookTitle });
           setSimilarBookId(bookId);
           setSimilarBookTitle(bookTitle || "");
           setShowBookDetail(false); // Đóng BookDetail trước
+          setSelectedBookId(null);
           setTimeout(() => {
             setShowSimilarBooks(true); // Mở SimilarBooksModal sau
           }, 300);
@@ -167,6 +175,17 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
           setShowSimilarBooks(false);
           setSimilarBookId(null);
           setSimilarBookTitle("");
+        }}
+        onBookClick={(bookId) => {
+          // Đóng SimilarBooksModal
+          setShowSimilarBooks(false);
+          setSimilarBookId(null);
+          setSimilarBookTitle("");
+          // Mở BookDetail với bookId được chọn
+          setTimeout(() => {
+            setSelectedBookId(bookId);
+            setShowBookDetail(true);
+          }, 300);
         }}
       />
     </>

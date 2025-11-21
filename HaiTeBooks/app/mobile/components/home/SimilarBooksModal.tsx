@@ -33,6 +33,7 @@ interface SimilarBooksModalProps {
   bookId: number | null;
   bookTitle?: string;
   onClose: () => void;
+  onBookClick?: (bookId: number) => void;
 }
 
 const formatPrice = (v: number) =>
@@ -43,6 +44,7 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
   bookId,
   bookTitle,
   onClose,
+  onBookClick,
 }) => {
   const insets = useSafeAreaInsets();
   const [recommendations, setRecommendations] = useState<Book[]>([]);
@@ -158,8 +160,20 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
   };
 
   const openBookDetail = (id: number) => {
-    setSelectedBookId(id);
-    setShowBookDetail(true);
+    // Nếu có callback từ parent, sử dụng callback đó
+    if (onBookClick) {
+      onClose();
+      setTimeout(() => {
+        onBookClick(id);
+      }, 300);
+    } else {
+      // Fallback: mở BookDetail modal trong component này
+      onClose();
+      setTimeout(() => {
+        setSelectedBookId(id);
+        setShowBookDetail(true);
+      }, 300);
+    }
   };
 
   const renderBookCard = ({ item }: { item: Book }) => (
@@ -230,14 +244,17 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
         hardwareAccelerated={true}
       >
         <View style={styles.overlay} pointerEvents="box-none">
-          <TouchableOpacity 
-            style={StyleSheet.absoluteFill} 
-            activeOpacity={1} 
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
             onPress={onClose}
           />
-          <View style={[styles.container, { paddingTop: insets.top }]} pointerEvents="auto">
+          <View
+            style={[styles.container, { paddingTop: insets.top }]}
+            pointerEvents="box-none"
+          >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={styles.header} pointerEvents="auto">
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={onClose}
@@ -276,7 +293,7 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
                 </TouchableOpacity>
               </View>
             ) : recommendations.length > 0 ? (
-              <View style={styles.content}>
+              <View style={styles.content} pointerEvents="auto">
                 <Text style={styles.resultsTitle}>
                   Tìm thấy {recommendations.length} sách tương tự
                 </Text>
@@ -288,6 +305,7 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
                   columnWrapperStyle={styles.row}
                   contentContainerStyle={styles.listContent}
                   showsVerticalScrollIndicator={false}
+                  scrollEnabled={true}
                 />
               </View>
             ) : (
@@ -508,4 +526,3 @@ const styles = StyleSheet.create({
 });
 
 export default SimilarBooksModal;
-
