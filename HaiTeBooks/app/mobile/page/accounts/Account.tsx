@@ -478,6 +478,7 @@ const Account: React.FC = () => {
             icon="heart"
             iconColor="#C92127"
             label="Sản phẩm yêu thích"
+            onPress={() => router.push("/mobile/page/accounts/FavoriteBooks")}
           />
           <MenuItem
             icon="help-circle"

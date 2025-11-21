@@ -22,6 +22,7 @@ import {
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
 import { useCart } from "../../context/CartContext";
 import BuyNowButton from "./BuyNowButton";
+import FavoriteButton from "./FavoriteButton";
 import SimilarBooksModal from "./SimilarBooksModal";
 
 interface BookDetailProps {
@@ -634,7 +635,10 @@ const BookDetail: React.FC<BookDetailProps> = ({
                     <Text style={styles.category}>
                       {book.categoryName || "Khác"}
                     </Text>
-                    <Text style={styles.title}>{book.title}</Text>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.title}>{book.title}</Text>
+                      <FavoriteButton bookId={book.id} />
+                    </View>
                     {book.author && (
                       <Text style={styles.author}>Tác giả: {book.author}</Text>
                     )}
@@ -1140,11 +1144,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "uppercase",
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    gap: 12,
+  },
   title: {
     fontSize: 22,
     fontWeight: "800",
     color: "#111827",
     lineHeight: 28,
+    flex: 1,
+    marginRight: 8,
   },
   author: {
     fontSize: 15,
