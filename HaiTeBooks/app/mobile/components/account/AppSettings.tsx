@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,9 +14,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import axiosInstance from "../../config/axiosConfig";
+import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
 import { useTheme } from "../../context/ThemeContext";
 import { User } from "../../types/user";
+import ChangePassword from "./ChangePassword";
 
 interface AppSettingsProps {
   user: User;
@@ -30,6 +32,7 @@ const AppSettings: React.FC<AppSettingsProps> = ({
   onBack,
   onAccountDeleted,
 }) => {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme, isDark, toggleTheme, setTheme: setThemeContext } = useTheme();
   const [language, setLanguage] = useState<Language>("vi");
@@ -46,13 +49,6 @@ const AppSettings: React.FC<AppSettingsProps> = ({
       console.error("AppSettings: user is null or undefined!");
     }
   }, [user]);
-
-  // Password change states
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
 
   // Delete account states
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
@@ -94,68 +90,31 @@ const AppSettings: React.FC<AppSettingsProps> = ({
     setThemeContext(newTheme);
   };
 
-  // Change password
-  const handleChangePassword = async () => {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Lỗi", "Vui lòng điền đầy đủ thông tin");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      Alert.alert("Lỗi", "Mật khẩu mới và xác nhận mật khẩu không khớp");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      Alert.alert("Lỗi", "Mật khẩu mới phải có ít nhất 6 ký tự");
-      return;
-    }
-
-    setChangingPassword(true);
-    try {
-      const response = await axiosInstance.put("/users/change-password", {
-        oldPassword,
-        newPassword,
-      });
-
-      if (response.status === 200) {
-        Alert.alert("Thành công", "Đổi mật khẩu thành công", [
-          {
-            text: "OK",
-            onPress: () => {
-              setShowChangePassword(false);
-              setOldPassword("");
-              setNewPassword("");
-              setConfirmPassword("");
-            },
-          },
-        ]);
-      }
-    } catch (error: any) {
-      console.error("Error changing password:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Không thể đổi mật khẩu. Vui lòng thử lại.";
-      Alert.alert("Lỗi", errorMessage);
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
   // Verify password for delete account
   const handleVerifyDeletePassword = async () => {
-    if (!deletePassword) {
+    if (!deletePassword || deletePassword.trim() === "") {
       Alert.alert("Lỗi", "Vui lòng nhập mật khẩu");
       return;
     }
 
     setLoading(true);
     try {
+      // ✅ Đảm bảo token được set trước khi gọi API
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) {
+        Alert.alert(
+          "Lỗi",
+          "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
+        );
+        setLoading(false);
+        return;
+      }
+      setAuthToken(token);
+
       // Verify password by trying to login
       const response = await axiosInstance.post("/auth/login", {
         username: user.username,
-        password: deletePassword,
+        password: deletePassword.trim(),
       });
 
       if (response.data && response.data.token) {
@@ -163,7 +122,32 @@ const AppSettings: React.FC<AppSettingsProps> = ({
       }
     } catch (error: any) {
       console.error("Error verifying password:", error);
-      Alert.alert("Lỗi", "Mật khẩu không đúng");
+
+      // ✅ Kiểm tra nếu là lỗi 401/403 (token hết hạn)
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        Alert.alert(
+          "Lỗi",
+          "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+          [
+            {
+              text: "OK",
+              onPress: async () => {
+                // Clear auth data
+                await AsyncStorage.multiRemove(["auth_token", "auth_user"]);
+                setAuthToken(undefined);
+                // ✅ Chuyển về trang đăng nhập
+                router.replace("/account");
+              },
+            },
+          ]
+        );
+      } else {
+        const errorMessage =
+          error.response?.data?.message ||
+          error.message ||
+          "Mật khẩu không đúng";
+        Alert.alert("Lỗi", errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -176,10 +160,42 @@ const AppSettings: React.FC<AppSettingsProps> = ({
       return;
     }
 
+    if (!deletePassword || deletePassword.trim() === "") {
+      Alert.alert("Lỗi", "Vui lòng nhập mật khẩu");
+      return;
+    }
+
     setDeletingAccount(true);
     try {
+      // ✅ Đảm bảo token được set trước khi gọi API
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) {
+        Alert.alert(
+          "Lỗi",
+          "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+          [
+            {
+              text: "OK",
+              onPress: async () => {
+                // Clear auth data
+                await AsyncStorage.multiRemove(["auth_token", "auth_user"]);
+                setAuthToken(undefined);
+                // ✅ Chuyển về trang đăng nhập
+                router.replace("/account");
+              },
+            },
+          ]
+        );
+        setDeletingAccount(false);
+        return;
+      }
+      setAuthToken(token);
+
+      // ✅ Backend có thể yêu cầu password trong body hoặc query param
+      // Thử gửi password trong body trước (nếu backend hỗ trợ)
+      // Nếu không, có thể cần gửi trong query param hoặc header
       const response = await axiosInstance.delete("/users/me", {
-        data: { password: deletePassword },
+        data: { password: deletePassword.trim() },
       });
 
       if (response.status === 200 || response.status === 204) {
@@ -196,11 +212,50 @@ const AppSettings: React.FC<AppSettingsProps> = ({
       }
     } catch (error: any) {
       console.error("Error deleting account:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Không thể xóa tài khoản. Vui lòng thử lại.";
-      Alert.alert("Lỗi", errorMessage);
+
+      // ✅ Xử lý các lỗi cụ thể từ backend
+      let errorMessage = "Không thể xóa tài khoản. Vui lòng thử lại.";
+      let shouldRedirectToLogin = false;
+
+      if (error.response) {
+        const backendMessage = error.response?.data?.message;
+        if (backendMessage) {
+          errorMessage = backendMessage;
+        } else if (error.response?.data?.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.status === 400) {
+          errorMessage = "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.";
+        } else if (
+          error.response.status === 401 ||
+          error.response.status === 403
+        ) {
+          errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+          shouldRedirectToLogin = true;
+        } else if (error.response.status === 404) {
+          errorMessage = "Không tìm thấy tài khoản.";
+        } else if (error.response.status === 500) {
+          errorMessage = "Lỗi server. Vui lòng thử lại sau.";
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      if (shouldRedirectToLogin) {
+        Alert.alert("Lỗi", errorMessage, [
+          {
+            text: "OK",
+            onPress: async () => {
+              // Clear auth data
+              await AsyncStorage.multiRemove(["auth_token", "auth_user"]);
+              setAuthToken(undefined);
+              // ✅ Chuyển về trang đăng nhập
+              router.replace("/account");
+            },
+          },
+        ]);
+      } else {
+        Alert.alert("Lỗi", errorMessage);
+      }
     } finally {
       setDeletingAccount(false);
     }
@@ -324,113 +379,7 @@ const AppSettings: React.FC<AppSettingsProps> = ({
         </View>
 
         {/* Change Password */}
-        <View
-          style={[
-            styles.section,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowChangePassword(!showChangePassword)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.actionButtonLeft}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={24}
-                color={colors.primary}
-              />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>
-                Đổi mật khẩu
-              </Text>
-            </View>
-            <Ionicons
-              name={showChangePassword ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          {showChangePassword && (
-            <View style={styles.passwordForm}>
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>
-                  Mật khẩu cũ
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="Nhập mật khẩu cũ"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry
-                  value={oldPassword}
-                  onChangeText={setOldPassword}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>
-                  Mật khẩu mới
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="Nhập mật khẩu mới"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>
-                  Xác nhận mật khẩu
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  placeholder="Nhập lại mật khẩu mới"
-                  placeholderTextColor={colors.textSecondary}
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                />
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  changingPassword && styles.submitButtonDisabled,
-                ]}
-                onPress={handleChangePassword}
-                disabled={changingPassword}
-              >
-                {changingPassword ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Đổi mật khẩu</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+        <ChangePassword />
 
         {/* Delete Account */}
         <View
@@ -682,12 +631,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
-  },
-  passwordForm: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
   },
   deleteForm: {
     marginTop: 16,
