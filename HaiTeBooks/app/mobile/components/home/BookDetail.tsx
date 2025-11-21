@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  FlatList,
   Image,
   Modal,
   ScrollView,
@@ -28,6 +29,7 @@ interface BookDetailProps {
   bookId: number | null;
   onClose: () => void;
   onShowSimilarBooks?: (bookId: number, bookTitle?: string) => void;
+  onBookClick?: (bookId: number) => void; // Callback để mở BookDetail trực tiếp
 }
 
 type BookDetail = {
@@ -40,6 +42,20 @@ type BookDetail = {
   imageUrl?: string;
   barcode?: string;
   categoryName?: string;
+  categoryId?: number;
+  averageRating?: number;
+  reviewCount?: number;
+};
+
+type SimilarBook = {
+  id: number;
+  title: string;
+  author?: string;
+  price: number;
+  stock: number;
+  imageUrl?: string;
+  categoryName?: string;
+  categoryId?: number;
   averageRating?: number;
   reviewCount?: number;
 };
@@ -65,6 +81,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
   bookId,
   onClose,
   onShowSimilarBooks,
+  onBookClick,
 }) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -84,6 +101,13 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const [authUserName, setAuthUserName] = useState<string>("");
   const [isEditingReview, setIsEditingReview] = useState<boolean>(false);
   const [showSimilarBooks, setShowSimilarBooks] = useState<boolean>(false);
+  const [similarCategoryBooks, setSimilarCategoryBooks] = useState<
+    SimilarBook[]
+  >([]);
+  const [loadingSimilarBooks, setLoadingSimilarBooks] =
+    useState<boolean>(false);
+  const [currentBookId, setCurrentBookId] = useState<number | null>(bookId);
+  const scrollViewRef = React.useRef<ScrollView>(null);
   const authUserIdRef = React.useRef<number | null>(null);
 
   // Removed debug log to prevent spam
@@ -94,6 +118,20 @@ const BookDetail: React.FC<BookDetailProps> = ({
       refreshCart();
     }
   }, [visible, refreshCart]);
+
+  // Cập nhật currentBookId khi bookId prop thay đổi
+  useEffect(() => {
+    if (bookId && bookId !== currentBookId) {
+      setCurrentBookId(bookId);
+    }
+  }, [bookId]);
+
+  // Fetch book detail khi currentBookId thay đổi
+  useEffect(() => {
+    if (visible && currentBookId) {
+      fetchBookDetail();
+    }
+  }, [visible, currentBookId]);
 
   useEffect(() => {
     if (!visible) return;
@@ -220,13 +258,15 @@ const BookDetail: React.FC<BookDetailProps> = ({
   }, [visible]);
 
   useEffect(() => {
-    if (visible && bookId) {
+    if (visible && currentBookId) {
       fetchBookDetail();
       setIsEditingReview(false); // Reset chế độ chỉnh sửa khi mở modal mới
+      // Scroll lên đầu khi chuyển sang sách mới
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } else if (!visible) {
       setIsEditingReview(false); // Reset khi đóng modal
     }
-  }, [visible, bookId]);
+  }, [visible, currentBookId]);
 
   const syncUserReview = useCallback(
     (list: ReviewItem[]) => {
@@ -290,7 +330,8 @@ const BookDetail: React.FC<BookDetailProps> = ({
   );
 
   const fetchBookDetail = async () => {
-    if (!bookId) return;
+    const targetBookId = currentBookId || bookId;
+    if (!targetBookId) return;
 
     setLoading(true);
     setError(null);
@@ -298,9 +339,9 @@ const BookDetail: React.FC<BookDetailProps> = ({
     setFormMessage(null);
     try {
       const [bookResp, reviewsResp] = await Promise.all([
-        axiosInstance.get<BookDetail>(`/books/${bookId}`),
+        axiosInstance.get<BookDetail>(`/books/${targetBookId}`),
         axiosInstance
-          .get<ReviewItem[]>(`/reviews/book/${bookId}`)
+          .get<ReviewItem[]>(`/reviews/book/${targetBookId}`)
           .catch((reviewErr) => {
             console.warn("Không thể tải reviews:", reviewErr?.message);
             return { data: [] as ReviewItem[] };
@@ -343,6 +384,15 @@ const BookDetail: React.FC<BookDetailProps> = ({
         averageRating,
         reviewCount,
       });
+
+      // Fetch sách cùng thể loại sau khi có book data
+      if (bookData.categoryName || bookData.categoryId) {
+        fetchSimilarCategoryBooks(
+          targetBookId,
+          bookData.categoryName,
+          bookData.categoryId
+        );
+      }
     } catch (err: any) {
       console.error("Error fetching book detail:", err);
       setError(
@@ -352,6 +402,75 @@ const BookDetail: React.FC<BookDetailProps> = ({
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSimilarCategoryBooks = async (
+    currentBookId: number,
+    categoryName?: string,
+    categoryId?: number
+  ) => {
+    if (!categoryName && !categoryId) return;
+
+    setLoadingSimilarBooks(true);
+    try {
+      // Fetch tất cả sách
+      const response = await axiosInstance.get<SimilarBook[]>("/books");
+      let allBooks = response.data || [];
+
+      // Filter sách cùng thể loại (loại trừ sách hiện tại)
+      let filteredBooks = allBooks.filter(
+        (b) =>
+          b.id !== currentBookId &&
+          (categoryName
+            ? b.categoryName?.trim() === categoryName.trim()
+            : categoryId
+            ? b.categoryId === categoryId
+            : false)
+      );
+
+      // Enrich với reviews
+      const booksWithReviews = await Promise.all(
+        filteredBooks.slice(0, 10).map(async (book) => {
+          try {
+            const reviewsResp = await axiosInstance.get<any[]>(
+              `/reviews/book/${book.id}`
+            );
+            const reviews = Array.isArray(reviewsResp.data)
+              ? reviewsResp.data
+              : [];
+            const approvedReviews = reviews.filter((r: any) =>
+              r?.status ? r.status === "approved" : true
+            );
+            const reviewCount = approvedReviews.length;
+            const averageRating =
+              reviewCount > 0
+                ? approvedReviews.reduce(
+                    (acc, curr) => acc + Number(curr.rating || 0),
+                    0
+                  ) / reviewCount
+                : 0;
+            return {
+              ...book,
+              averageRating,
+              reviewCount,
+            };
+          } catch {
+            return {
+              ...book,
+              averageRating: 0,
+              reviewCount: 0,
+            };
+          }
+        })
+      );
+
+      setSimilarCategoryBooks(booksWithReviews);
+    } catch (error) {
+      console.error("Error fetching similar category books:", error);
+      setSimilarCategoryBooks([]);
+    } finally {
+      setLoadingSimilarBooks(false);
     }
   };
 
@@ -491,6 +610,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
             ) : book ? (
               <>
                 <ScrollView
+                  ref={scrollViewRef}
                   style={styles.scrollView}
                   contentContainerStyle={styles.scrollContent}
                   showsVerticalScrollIndicator={false}
@@ -753,6 +873,98 @@ const BookDetail: React.FC<BookDetailProps> = ({
                         ))
                       )}
                     </View>
+
+                    {/* Sách bạn có thể thích - Sách cùng thể loại */}
+                    {similarCategoryBooks.length > 0 && (
+                      <View style={styles.similarBooksSection}>
+                        <Text style={styles.sectionTitle}>
+                          Sách bạn có thể thích
+                        </Text>
+                        {loadingSimilarBooks ? (
+                          <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color="#C92127" />
+                            <Text style={styles.loadingText}>Đang tải...</Text>
+                          </View>
+                        ) : (
+                          <FlatList
+                            data={similarCategoryBooks}
+                            numColumns={2}
+                            scrollEnabled={false}
+                            keyExtractor={(item) => item.id.toString()}
+                            columnWrapperStyle={styles.similarBooksRow}
+                            contentContainerStyle={styles.similarBooksList}
+                            renderItem={({ item: similarBook }) => (
+                              <TouchableOpacity
+                                style={styles.similarBookCard}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                  // Chuyển trực tiếp sang chi tiết sách mới
+                                  setCurrentBookId(similarBook.id);
+                                }}
+                              >
+                                <View style={styles.similarBookImageContainer}>
+                                  <Image
+                                    source={{
+                                      uri:
+                                        similarBook.imageUrl ||
+                                        "https://via.placeholder.com/300x400",
+                                    }}
+                                    style={styles.similarBookImage}
+                                    resizeMode="cover"
+                                  />
+                                </View>
+                                <View style={styles.similarBookInfo}>
+                                  <Text
+                                    style={styles.similarBookCategory}
+                                    numberOfLines={1}
+                                  >
+                                    {similarBook.categoryName || "Khác"}
+                                  </Text>
+                                  <Text
+                                    style={styles.similarBookTitle}
+                                    numberOfLines={2}
+                                  >
+                                    {similarBook.title}
+                                  </Text>
+                                  {similarBook.reviewCount &&
+                                  similarBook.reviewCount > 0 ? (
+                                    <View style={styles.similarBookReviewsRow}>
+                                      <Text style={styles.similarBookRating}>
+                                        ★{" "}
+                                        {Number.isFinite(
+                                          similarBook.averageRating
+                                        )
+                                          ? similarBook.averageRating!.toFixed(
+                                              1
+                                            )
+                                          : "0.0"}
+                                      </Text>
+                                      <Text
+                                        style={styles.similarBookReviewCount}
+                                      >
+                                        ({similarBook.reviewCount})
+                                      </Text>
+                                    </View>
+                                  ) : (
+                                    <Text style={styles.similarBookNoReviews}>
+                                      Chưa có đánh giá
+                                    </Text>
+                                  )}
+                                  <View style={styles.similarBookMeta}>
+                                    <Text style={styles.similarBookPrice}>
+                                      {formatPrice(similarBook.price)}
+                                    </Text>
+                                    <Text style={styles.similarBookStock}>
+                                      Còn {similarBook.stock}
+                                    </Text>
+                                  </View>
+                                </View>
+                              </TouchableOpacity>
+                            )}
+                          />
+                        )}
+                      </View>
+                    )}
                   </View>
                 </ScrollView>
 
@@ -1248,6 +1460,101 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+  },
+  similarBooksSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  similarBooksList: {
+    paddingVertical: 8,
+  },
+  similarBooksRow: {
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  similarBookCard: {
+    width: (SCREEN_WIDTH - 48) / 2 - 6, // 2 cột với gap 12px
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  similarBookImageContainer: {
+    width: "100%",
+    height: 120,
+    backgroundColor: "#F9FAFB",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  similarBookImage: {
+    width: "90%",
+    height: "90%",
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+  },
+  similarBookInfo: {
+    padding: 10,
+    minHeight: 120,
+  },
+  similarBookCategory: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginBottom: 4,
+  },
+  similarBookTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 6,
+    lineHeight: 16,
+    minHeight: 32,
+  },
+  similarBookReviewsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  similarBookRating: {
+    fontSize: 11,
+    color: "#F59E0B",
+    fontWeight: "600",
+    marginRight: 4,
+  },
+  similarBookReviewCount: {
+    fontSize: 10,
+    color: "#6B7280",
+  },
+  similarBookNoReviews: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+    marginBottom: 6,
+  },
+  similarBookMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "auto",
+  },
+  similarBookPrice: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#C92127",
+  },
+  similarBookStock: {
+    fontSize: 10,
+    color: "#6B7280",
   },
 });
 

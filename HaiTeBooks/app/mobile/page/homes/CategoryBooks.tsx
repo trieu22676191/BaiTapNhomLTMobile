@@ -285,6 +285,10 @@ const CategoryBooks: React.FC = () => {
             visible={selectedBookId === item.id}
             bookId={item.id}
             onClose={() => setSelectedBookId(null)}
+            onBookClick={(bookId) => {
+              // Mở BookDetail trực tiếp với sách mới
+              setSelectedBookId(bookId);
+            }}
             onShowSimilarBooks={(bookId, bookTitle) => {
               setSimilarBookId(bookId);
               setSimilarBookTitle(bookTitle || "");

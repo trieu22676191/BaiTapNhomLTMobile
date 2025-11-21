@@ -156,6 +156,11 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
           setShowBookDetail(false);
           setSelectedBookId(null);
         }}
+        onBookClick={(bookId) => {
+          // Mở BookDetail trực tiếp với sách mới
+          setSelectedBookId(bookId);
+          setShowBookDetail(true);
+        }}
         onShowSimilarBooks={(bookId, bookTitle) => {
           console.log("🔍 ProductCard: onShowSimilarBooks called", { bookId, bookTitle });
           setSimilarBookId(bookId);
