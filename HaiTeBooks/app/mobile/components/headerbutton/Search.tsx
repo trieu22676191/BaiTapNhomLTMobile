@@ -48,7 +48,6 @@ const Search: React.FC<SearchProps> = ({
           underlineColorAndroid="transparent"
         />
       </View>
-
     </View>
   );
 };
