@@ -661,6 +661,7 @@ const Account: React.FC = () => {
             iconColor="#10B981"
             label="Trung tâm trợ giúp"
             iconType="filled-circle"
+            onPress={() => router.push("/mobile/page/accounts/HelpCenter")}
           />
         </View>
       </ScrollView>

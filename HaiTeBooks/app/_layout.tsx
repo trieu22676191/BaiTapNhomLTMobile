@@ -197,6 +197,13 @@ export default function RootLayout() {
                   }}
                 />
                 <Stack.Screen
+                  name="mobile/page/accounts/HelpCenter"
+                  options={{
+                    headerShown: false,
+                    animation: "none",
+                  }}
+                />
+                <Stack.Screen
                   name="mobile/page/accounts/FavoriteBooks"
                   options={{
                     headerShown: false,
