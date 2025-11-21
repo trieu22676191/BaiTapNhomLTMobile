@@ -53,6 +53,7 @@ const MyOrder: React.FC = () => {
   const [confirmingOrderId, setConfirmingOrderId] = useState<number | null>(
     null
   );
+  const [viewedOrderIds, setViewedOrderIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const loadUser = async () => {
@@ -235,10 +236,41 @@ const MyOrder: React.FC = () => {
     }
   }, [params.status]);
 
-  // ✅ Refresh notification khi focus vào trang MyOrder (để cập nhật khi admin thay đổi trạng thái)
+  // Load viewed order IDs từ AsyncStorage
+  useEffect(() => {
+    const loadViewedOrders = async () => {
+      try {
+        const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+        if (viewedData) {
+          const viewedIds = JSON.parse(viewedData);
+          setViewedOrderIds(new Set(viewedIds));
+        }
+      } catch (error) {
+        console.error("Lỗi khi load viewed orders:", error);
+      }
+    };
+    loadViewedOrders();
+  }, []);
+
+  // ✅ Refresh notification và viewed orders khi focus vào trang MyOrder
   useFocusEffect(
     useCallback(() => {
       refreshUnreadCount();
+      // Reload viewed orders để cập nhật indicator
+      const reloadViewedOrders = async () => {
+        try {
+          const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+          if (viewedData) {
+            const viewedIds = JSON.parse(viewedData);
+            setViewedOrderIds(new Set(viewedIds));
+          } else {
+            setViewedOrderIds(new Set());
+          }
+        } catch (error) {
+          console.error("Lỗi khi reload viewed orders:", error);
+        }
+      };
+      reloadViewedOrders();
     }, [refreshUnreadCount])
   );
 
@@ -513,12 +545,34 @@ const MyOrder: React.FC = () => {
     const isShipping = item.status === "SHIPPING";
     const isCancelling = cancellingOrderId === item.id;
     const isConfirming = confirmingOrderId === item.id;
+    const isUnviewed = !viewedOrderIds.has(item.id);
 
     return (
-      <View style={styles.orderCard}>
+      <View style={[styles.orderCard, isUnviewed && styles.orderCardUnviewed]}>
+        {isUnviewed && (
+          <View style={styles.unviewedIndicator}>
+            <View style={styles.unviewedDot} />
+          </View>
+        )}
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => {
+          onPress={async () => {
+            // Đánh dấu đơn hàng là đã xem
+            try {
+              const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+              const viewedIds = viewedData ? JSON.parse(viewedData) : [];
+              if (!viewedIds.includes(item.id)) {
+                viewedIds.push(item.id);
+                await AsyncStorage.setItem(
+                  "viewed_order_ids",
+                  JSON.stringify(viewedIds)
+                );
+                // Cập nhật state ngay lập tức
+                setViewedOrderIds(new Set(viewedIds));
+              }
+            } catch (error) {
+              console.error("Lỗi khi lưu viewed order:", error);
+            }
             router.push(`/mobile/page/accounts/OrderDetail?id=${item.id}`);
           }}
         >
@@ -785,12 +839,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    position: "relative",
+  },
+  orderCardUnviewed: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 2,
+    borderColor: "#FECACA",
   },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 12,
+  },
+  unviewedIndicator: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    zIndex: 10,
+  },
+  unviewedDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#C92127",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   orderId: {
     fontSize: 16,

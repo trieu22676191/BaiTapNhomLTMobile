@@ -52,6 +52,7 @@ const Account: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [voucherCount, setVoucherCount] = useState(0);
+  const [viewedOrderIds, setViewedOrderIds] = useState<Set<number>>(new Set());
   const params = useLocalSearchParams<{ next?: string; bookId?: string }>();
 
   // Debug: Log state changes
@@ -256,6 +257,13 @@ const Account: React.FC = () => {
               }
             }
           }
+
+          // Reload viewed orders để cập nhật badge
+          const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+          if (viewedData) {
+            const viewedIds = JSON.parse(viewedData);
+            setViewedOrderIds(new Set(viewedIds));
+          }
         } catch (error) {
           console.error("Error checking session:", error);
           setUser(null);
@@ -279,6 +287,22 @@ const Account: React.FC = () => {
   useEffect(() => {
     fetchVoucherCount();
   }, [fetchVoucherCount]);
+
+  // Load viewed order IDs từ AsyncStorage
+  useEffect(() => {
+    const loadViewedOrders = async () => {
+      try {
+        const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+        if (viewedData) {
+          const viewedIds = JSON.parse(viewedData);
+          setViewedOrderIds(new Set(viewedIds));
+        }
+      } catch (error) {
+        console.error("Lỗi khi load viewed orders:", error);
+      }
+    };
+    loadViewedOrders();
+  }, []);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -346,13 +370,23 @@ const Account: React.FC = () => {
     );
   }
 
-  // Đếm số lượng orders theo status
+  // Đếm số lượng orders chưa xem theo status
   const orderCounts = {
-    pending: orders.filter((o) => o.status === "PENDING").length,
-    processing: orders.filter((o) => o.status === "PROCESSING").length,
-    shipping: orders.filter((o) => o.status === "SHIPPING").length,
-    completed: orders.filter((o) => o.status === "COMPLETED").length,
-    cancelled: orders.filter((o) => o.status === "CANCELLED").length,
+    pending: orders.filter(
+      (o) => o.status === "PENDING" && !viewedOrderIds.has(o.id)
+    ).length,
+    processing: orders.filter(
+      (o) => o.status === "PROCESSING" && !viewedOrderIds.has(o.id)
+    ).length,
+    shipping: orders.filter(
+      (o) => o.status === "SHIPPING" && !viewedOrderIds.has(o.id)
+    ).length,
+    completed: orders.filter(
+      (o) => o.status === "COMPLETED" && !viewedOrderIds.has(o.id)
+    ).length,
+    cancelled: orders.filter(
+      (o) => o.status === "CANCELLED" && !viewedOrderIds.has(o.id)
+    ).length,
   };
 
   if (user.role_id === "admin") {
@@ -390,6 +424,13 @@ const Account: React.FC = () => {
             >
               <View style={styles.orderIcon}>
                 <Ionicons name="wallet-outline" size={24} color="#111827" />
+                {orderCounts.pending > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.pending > 99 ? "99+" : orderCounts.pending}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Chờ xác nhận</Text>
             </TouchableOpacity>
@@ -401,6 +442,13 @@ const Account: React.FC = () => {
             >
               <View style={styles.orderIcon}>
                 <Ionicons name="cube-outline" size={24} color="#111827" />
+                {orderCounts.processing > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.processing > 99 ? "99+" : orderCounts.processing}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Đang xử lý</Text>
             </TouchableOpacity>
@@ -412,6 +460,13 @@ const Account: React.FC = () => {
             >
               <View style={styles.orderIcon}>
                 <Ionicons name="car-outline" size={24} color="#111827" />
+                {orderCounts.shipping > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.shipping > 99 ? "99+" : orderCounts.shipping}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Đang giao hàng</Text>
             </TouchableOpacity>
@@ -427,6 +482,13 @@ const Account: React.FC = () => {
                   size={24}
                   color="#111827"
                 />
+                {orderCounts.completed > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.completed > 99 ? "99+" : orderCounts.completed}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Hoàn tất</Text>
             </TouchableOpacity>
@@ -442,6 +504,13 @@ const Account: React.FC = () => {
                   size={24}
                   color="#111827"
                 />
+                {orderCounts.cancelled > 0 && (
+                  <View style={styles.orderBadge}>
+                    <Text style={styles.orderBadgeText}>
+                      {orderCounts.cancelled > 99 ? "99+" : orderCounts.cancelled}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.orderLabel}>Đã huỷ</Text>
             </TouchableOpacity>
@@ -641,6 +710,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
+    position: "relative",
   },
   orderLabel: {
     fontSize: 11,

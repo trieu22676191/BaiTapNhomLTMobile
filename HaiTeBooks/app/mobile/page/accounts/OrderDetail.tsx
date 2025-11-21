@@ -91,10 +91,10 @@ const OrderDetail: React.FC = () => {
 
       // Lấy số điện thoại từ order data
       const userId = orderData.userId || orderData.user?.id;
-      let userPhone = 
-        orderData.userPhone || 
-        orderData.user?.phone || 
-        orderData.user?.phoneNumber || 
+      let userPhone =
+        orderData.userPhone ||
+        orderData.user?.phone ||
+        orderData.user?.phoneNumber ||
         orderData.user?.sdt;
 
       // Chỉ fetch từ API user nếu user đang xem đơn hàng của chính mình
@@ -103,20 +103,28 @@ const OrderDetail: React.FC = () => {
           // Lấy current user ID từ /users/me
           const currentUserResponse = await axiosInstance.get("/users/me");
           const currentUserId = currentUserResponse.data?.id;
-          
+
           // Chỉ fetch nếu userId === currentUserId (user đang xem đơn hàng của chính mình)
           if (currentUserId && userId === currentUserId) {
-            userPhone = currentUserResponse.data?.phone || currentUserResponse.data?.phoneNumber || currentUserResponse.data?.sdt || null;
+            userPhone =
+              currentUserResponse.data?.phone ||
+              currentUserResponse.data?.phoneNumber ||
+              currentUserResponse.data?.sdt ||
+              null;
             console.log("✅ Fetched user phone from /users/me:", userPhone);
           } else {
-            console.log("⚠️ Cannot fetch phone - user is viewing another user's order");
+            console.log(
+              "⚠️ Cannot fetch phone - user is viewing another user's order"
+            );
           }
         } catch (userError: any) {
           // Ignore 403 errors (forbidden) - user không có quyền xem user khác
           if (userError?.response?.status !== 403) {
             console.error("❌ Error fetching user phone:", userError);
           } else {
-            console.log("⚠️ Forbidden - cannot fetch phone for other user's order");
+            console.log(
+              "⚠️ Forbidden - cannot fetch phone for other user's order"
+            );
           }
         }
       }
@@ -139,7 +147,8 @@ const OrderDetail: React.FC = () => {
               code: orderData.appliedPromotion.code,
               discountPercent: orderData.appliedPromotion.discountPercent,
               name: orderData.appliedPromotion.name,
-              maxDiscountAmount: orderData.appliedPromotion.maxDiscountAmount || null,
+              maxDiscountAmount:
+                orderData.appliedPromotion.maxDiscountAmount || null,
             }
           : undefined,
       };
@@ -173,6 +182,21 @@ const OrderDetail: React.FC = () => {
         console.log("💵 Order total from backend:", normalizedOrder.total);
       }
       setOrder(normalizedOrder);
+
+      // Đánh dấu đơn hàng là đã xem
+      try {
+        const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+        const viewedIds = viewedData ? JSON.parse(viewedData) : [];
+        if (!viewedIds.includes(orderId)) {
+          viewedIds.push(orderId);
+          await AsyncStorage.setItem(
+            "viewed_order_ids",
+            JSON.stringify(viewedIds)
+          );
+        }
+      } catch (error) {
+        console.error("Lỗi khi lưu viewed order:", error);
+      }
     } catch (error: any) {
       console.error("❌ Lỗi khi tải đơn hàng:", error);
       Alert.alert("Lỗi", "Không thể tải thông tin đơn hàng");
@@ -194,13 +218,13 @@ const OrderDetail: React.FC = () => {
     try {
       // Parse date string từ backend
       let date: Date;
-      
+
       // Kiểm tra xem date string có timezone info không
       // Format có timezone: "2024-01-01T10:00:00Z" hoặc "2024-01-01T10:00:00+07:00"
       // Format không có timezone: "2024-01-01T10:00:00"
-      const hasTimezone = dateString.endsWith("Z") || 
-                         /[+-]\d{2}:\d{2}$/.test(dateString); // Có +HH:MM hoặc -HH:MM ở cuối
-      
+      const hasTimezone =
+        dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString); // Có +HH:MM hoặc -HH:MM ở cuối
+
       if (!hasTimezone && dateString.includes("T")) {
         // Nếu không có timezone và có format ISO, giả sử backend trả về UTC
         // Thêm Z để parse như UTC
@@ -209,9 +233,9 @@ const OrderDetail: React.FC = () => {
         // Nếu đã có timezone, parse bình thường
         date = new Date(dateString);
       }
-      
+
       if (isNaN(date.getTime())) return "N/A";
-      
+
       // Format với timezone Việt Nam (Asia/Ho_Chi_Minh = UTC+7)
       // toLocaleString sẽ tự động convert từ UTC sang VN timezone
       return date.toLocaleString("vi-VN", {
@@ -300,7 +324,7 @@ const OrderDetail: React.FC = () => {
 
               // Refresh order data
               await fetchOrder();
-              
+
               Alert.alert("Thành công", "Đã xác nhận nhận hàng thành công!");
             } catch (error: any) {
               console.error("❌ Lỗi khi xác nhận nhận hàng:", error);
@@ -332,7 +356,9 @@ const OrderDetail: React.FC = () => {
 
     Alert.alert(
       "Xác nhận hủy đơn hàng",
-      `Bạn có chắc chắn muốn hủy đơn hàng #${order.id}?\n\nTổng tiền: ${formatCurrency(order.total)}`,
+      `Bạn có chắc chắn muốn hủy đơn hàng #${
+        order.id
+      }?\n\nTổng tiền: ${formatCurrency(order.total)}`,
       [
         {
           text: "Không",
@@ -456,19 +482,23 @@ const OrderDetail: React.FC = () => {
       (sum, item) => sum + item.price * item.quantity,
       0
     ) || 0;
-  
+
   // Tính discount amount với maxDiscountAmount (giống backend)
   const discountAmount = order.appliedPromotion
     ? (() => {
-        const calculatedDiscount = (subtotal * order.appliedPromotion!.discountPercent) / 100;
+        const calculatedDiscount =
+          (subtotal * order.appliedPromotion!.discountPercent) / 100;
         // Nếu có maxDiscountAmount và calculatedDiscount vượt quá, thì dùng maxDiscountAmount
-        if (order.appliedPromotion!.maxDiscountAmount != null && calculatedDiscount > order.appliedPromotion!.maxDiscountAmount) {
+        if (
+          order.appliedPromotion!.maxDiscountAmount != null &&
+          calculatedDiscount > order.appliedPromotion!.maxDiscountAmount
+        ) {
           return order.appliedPromotion!.maxDiscountAmount;
         }
         return calculatedDiscount;
       })()
     : 0;
-  
+
   // Dùng order.total từ backend vì backend đã tính đúng với maxDiscountAmount
   // Chỉ tính lại để hiển thị discount amount, nhưng finalTotal dùng từ backend
   const finalTotal = order.total;
@@ -495,7 +525,9 @@ const OrderDetail: React.FC = () => {
         contentContainerStyle={[
           styles.contentContainer,
           (order.status?.toUpperCase() === "SHIPPING" ||
-            order.status?.toUpperCase() === "PENDING") && { paddingBottom: 100 },
+            order.status?.toUpperCase() === "PENDING") && {
+            paddingBottom: 100,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -563,19 +595,27 @@ const OrderDetail: React.FC = () => {
             </View>
           )}
           <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, styles.paymentMethodLabel, { color: colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.infoLabel,
+                styles.paymentMethodLabel,
+                { color: colors.textSecondary },
+              ]}
+            >
               Phương thức thanh toán:
             </Text>
             <View style={styles.paymentMethodContainer}>
               <Ionicons
                 name={
-                  order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                  order.paymentMethod === "VNPAY" ||
+                  order.paymentMethod === "vnpay"
                     ? "card"
                     : "cash"
                 }
                 size={18}
                 color={
-                  order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                  order.paymentMethod === "VNPAY" ||
+                  order.paymentMethod === "vnpay"
                     ? "#10B981"
                     : "#6B7280"
                 }
@@ -585,17 +625,20 @@ const OrderDetail: React.FC = () => {
                   styles.paymentMethodText,
                   {
                     color:
-                      order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                      order.paymentMethod === "VNPAY" ||
+                      order.paymentMethod === "vnpay"
                         ? "#10B981"
                         : colors.text,
                     fontWeight:
-                      order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                      order.paymentMethod === "VNPAY" ||
+                      order.paymentMethod === "vnpay"
                         ? "600"
                         : "500",
                   },
                 ]}
               >
-                {order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                {order.paymentMethod === "VNPAY" ||
+                order.paymentMethod === "vnpay"
                   ? "VNPay"
                   : order.paymentMethod === "CASH" || !order.paymentMethod
                   ? "Tiền mặt"
@@ -677,7 +720,10 @@ const OrderDetail: React.FC = () => {
           {order.orderItems && order.orderItems.length > 0 ? (
             <View style={styles.itemsContainer}>
               {order.orderItems.map((item, index) => (
-                <View key={item.id || `item-${item.bookId}-${index}`} style={styles.itemRow}>
+                <View
+                  key={item.id || `item-${item.bookId}-${index}`}
+                  style={styles.itemRow}
+                >
                   <View style={styles.itemInfo}>
                     <Text style={[styles.itemTitle, { color: colors.text }]}>
                       {item.bookTitle || `Sách #${item.bookId}`}
