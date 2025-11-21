@@ -1,5 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { AppState, AppStateStatus } from "react-native";
 import axiosInstance, { setAuthToken } from "../config/axiosConfig";
 import { User } from "../types/user";
@@ -50,7 +56,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       setAuthToken(token);
-      const response = await axiosInstance.get(`/notifications/unread/${user.id}`);
+      const response = await axiosInstance.get(
+        `/notifications/unread/${user.id}`
+      );
       const data = response.data || [];
       setUnreadCount(data.length);
       setErrorCount(0); // Reset error count khi thành công
@@ -58,7 +66,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       console.log("🔄 Unread notifications refreshed, count:", data.length);
     } catch (error: any) {
       const status = error?.response?.status;
-      
+
       // Xử lý các loại lỗi khác nhau
       if (status === 401 || status === 403) {
         // Token invalid - interceptor sẽ xử lý
@@ -72,7 +80,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
           const newCount = prev + 1;
           if (newCount <= 3) {
             // Chỉ log 3 lần đầu để tránh spam
-            console.log("⚠️ Backend temporarily unavailable (502/503/504) - keeping current count");
+            console.log(
+              "⚠️ Backend temporarily unavailable (502/503/504) - keeping current count"
+            );
           }
           return newCount;
         });
@@ -82,14 +92,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
         setErrorCount((prev) => {
           const newCount = prev + 1;
           if (newCount <= 3) {
-            console.warn("⚠️ Server error when fetching notifications:", status);
+            console.warn(
+              "⚠️ Server error when fetching notifications:",
+              status
+            );
           }
           return newCount;
         });
         // Giữ nguyên count hiện tại thay vì set về 0
       } else {
         // Các lỗi khác (network, timeout, etc.) - không tăng error count
-        console.warn("⚠️ Error fetching notifications:", error?.message || "Unknown error");
+        console.warn(
+          "⚠️ Error fetching notifications:",
+          error?.message || "Unknown error"
+        );
         // Giữ nguyên count hiện tại
       }
     } finally {
@@ -103,7 +119,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     const timeout = setTimeout(() => {
       refreshUnreadCount();
     }, 1000);
-    
+
     return () => {
       clearTimeout(timeout);
     };
@@ -118,11 +134,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     } else if (errorCount >= 3) {
       intervalMs = 15000; // 15 giây nếu có 3+ lỗi liên tiếp
     }
-    
+
     const interval = setInterval(() => {
       refreshUnreadCount();
     }, intervalMs);
-    
+
     return () => {
       clearInterval(interval);
     };
@@ -130,20 +146,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ✅ Refresh khi app active lại (từ background)
   useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
-      if (nextAppState === "active") {
-        console.log("📱 App became active - refreshing notifications");
-        refreshUnreadCount();
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (nextAppState === "active") {
+          console.log("📱 App became active - refreshing notifications");
+          refreshUnreadCount();
+        }
       }
-    });
-    
+    );
+
     return () => {
       subscription.remove();
     };
   }, [refreshUnreadCount]);
 
   return (
-    <NotificationContext.Provider value={{ unreadCount, refreshUnreadCount, loading }}>
+    <NotificationContext.Provider
+      value={{ unreadCount, refreshUnreadCount, loading }}
+    >
       {children}
     </NotificationContext.Provider>
   );
@@ -156,4 +177,3 @@ export const useNotification = () => {
   }
   return context;
 };
-

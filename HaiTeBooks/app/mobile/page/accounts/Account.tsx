@@ -75,7 +75,7 @@ const Account: React.FC = () => {
           const parsed: User = JSON.parse(savedUser);
           setUser(parsed);
         }
-        
+
         // Kiểm tra payment status nếu có pending payment
         await checkPendingPayment();
       } catch {}
@@ -98,7 +98,9 @@ const Account: React.FC = () => {
   // Kiểm tra payment status nếu có pending payment
   const checkPendingPayment = async () => {
     try {
-      const pendingOrderId = await AsyncStorage.getItem("pending_payment_order");
+      const pendingOrderId = await AsyncStorage.getItem(
+        "pending_payment_order"
+      );
       if (!pendingOrderId) return;
 
       const token = await AsyncStorage.getItem("auth_token");
@@ -108,17 +110,23 @@ const Account: React.FC = () => {
 
       // ✅ BỎ API /payments/order/ - Kiểm tra order status trực tiếp
       try {
-        const orderResponse = await axiosInstance.get(`/orders/${pendingOrderId}`);
+        const orderResponse = await axiosInstance.get(
+          `/orders/${pendingOrderId}`
+        );
         const order = orderResponse.data;
 
         // Kiểm tra nếu order có paymentMethod = VNPAY và status = PENDING (đã thanh toán thành công)
-        const isVNPayOrder = 
-          (order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay") &&
+        const isVNPayOrder =
+          (order.paymentMethod === "VNPAY" ||
+            order.paymentMethod === "vnpay") &&
           (order.status === "PENDING" || order.status === "pending");
 
         if (isVNPayOrder) {
           // Payment thành công, xóa pending và refresh cart
-          await AsyncStorage.multiRemove(["pending_payment_order", "pending_payment_txnRef"]);
+          await AsyncStorage.multiRemove([
+            "pending_payment_order",
+            "pending_payment_txnRef",
+          ]);
           await refreshCart();
           Alert.alert(
             "Thanh toán thành công!",
@@ -217,7 +225,7 @@ const Account: React.FC = () => {
       }, 100); // Delay nhỏ để đảm bảo AsyncStorage đã được cập nhật
     } catch (error: any) {
       const status = error?.response?.status;
-      
+
       // Xử lý các loại lỗi khác nhau
       if (status === 401 || status === 403) {
         // Token invalid - interceptor sẽ xử lý
@@ -226,7 +234,9 @@ const Account: React.FC = () => {
       } else if (status === 502 || status === 503 || status === 504) {
         // Bad Gateway / Service Unavailable / Gateway Timeout
         // Backend tạm thời không khả dụng - không log error, giữ nguyên orders hiện tại
-        console.log("⚠️ Backend temporarily unavailable (502/503/504) - keeping current orders");
+        console.log(
+          "⚠️ Backend temporarily unavailable (502/503/504) - keeping current orders"
+        );
         // Không set orders về [], giữ nguyên giá trị hiện tại
       } else if (status >= 500) {
         // Server errors khác - log nhưng không crash
@@ -234,7 +244,10 @@ const Account: React.FC = () => {
         // Giữ nguyên orders hiện tại
       } else {
         // Các lỗi khác (network, timeout, etc.)
-        console.warn("⚠️ Error fetching orders:", error?.message || "Unknown error");
+        console.warn(
+          "⚠️ Error fetching orders:",
+          error?.message || "Unknown error"
+        );
         // Chỉ set về [] nếu không phải lỗi server
         setOrders([]);
       }
@@ -291,19 +304,19 @@ const Account: React.FC = () => {
       setVoucherCount(activeCount);
     } catch (error: any) {
       // Xử lý lỗi một cách graceful - không crash app
-      const errorMessage = 
+      const errorMessage =
         error?.response?.data?.message ||
         error?.message ||
         error?.response?.statusText ||
         "Unknown error";
       const statusCode = error?.response?.status;
-      
+
       console.error("Error fetching voucher count:", {
         message: errorMessage,
         status: statusCode,
         error: error,
       });
-      
+
       // Với lỗi 502 (Bad Gateway), có thể là backend tạm thời không khả dụng
       // Set về 0 và không hiển thị badge
       setVoucherCount(0);
@@ -369,22 +382,6 @@ const Account: React.FC = () => {
     if (user?.id) {
       fetchOrders();
     }
-  }, [user?.id, fetchOrders]);
-
-  // ✅ Refresh orders định kỳ để cập nhật khi admin thay đổi trạng thái
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // Refresh ngay lập tức
-    fetchOrders();
-
-    // Refresh mỗi 10 giây để cập nhật khi admin thay đổi trạng thái đơn hàng
-    const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing orders...");
-      fetchOrders();
-    }, 10000); // 10 giây
-
-    return () => clearInterval(interval);
   }, [user?.id, fetchOrders]);
 
   // ✅ Refresh orders khi app active lại (từ background)
@@ -454,7 +451,16 @@ const Account: React.FC = () => {
       totalOrders: orders.length,
       viewedOrders: viewedOrderIds.size,
     });
-  }, [orderCounts.pending, orderCounts.processing, orderCounts.shipping, orderCounts.completed, orderCounts.cancelled, orders.length, viewedOrderIds.size, user]);
+  }, [
+    orderCounts.pending,
+    orderCounts.processing,
+    orderCounts.shipping,
+    orderCounts.completed,
+    orderCounts.cancelled,
+    orders.length,
+    viewedOrderIds.size,
+    user,
+  ]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -522,7 +528,6 @@ const Account: React.FC = () => {
     );
   }
 
-
   if (user.role_id === "admin") {
     return (
       <View style={styles.container}>
@@ -579,7 +584,9 @@ const Account: React.FC = () => {
                 {orderCounts.processing > 0 && (
                   <View style={styles.orderBadge}>
                     <Text style={styles.orderBadgeText}>
-                      {orderCounts.processing > 99 ? "99+" : orderCounts.processing}
+                      {orderCounts.processing > 99
+                        ? "99+"
+                        : orderCounts.processing}
                     </Text>
                   </View>
                 )}
@@ -619,7 +626,9 @@ const Account: React.FC = () => {
                 {orderCounts.completed > 0 && (
                   <View style={styles.orderBadge}>
                     <Text style={styles.orderBadgeText}>
-                      {orderCounts.completed > 99 ? "99+" : orderCounts.completed}
+                      {orderCounts.completed > 99
+                        ? "99+"
+                        : orderCounts.completed}
                     </Text>
                   </View>
                 )}
@@ -641,7 +650,9 @@ const Account: React.FC = () => {
                 {orderCounts.cancelled > 0 && (
                   <View style={styles.orderBadge}>
                     <Text style={styles.orderBadgeText}>
-                      {orderCounts.cancelled > 99 ? "99+" : orderCounts.cancelled}
+                      {orderCounts.cancelled > 99
+                        ? "99+"
+                        : orderCounts.cancelled}
                     </Text>
                   </View>
                 )}
