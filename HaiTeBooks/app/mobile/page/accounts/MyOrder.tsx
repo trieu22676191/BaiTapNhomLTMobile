@@ -113,17 +113,15 @@ const MyOrder: React.FC = () => {
 
       setOrders(normalizedOrders);
 
-      // Mark order as viewed when fetched
+      // ✅ CHỈ reload viewedOrderIds, KHÔNG mark tất cả orders là viewed
+      // Orders chỉ được mark là viewed khi user click vào chúng
       const viewedData = await AsyncStorage.getItem("viewed_order_ids");
-      const viewedIds = viewedData ? JSON.parse(viewedData) : [];
-      const newViewedIds = [
-        ...new Set([...viewedIds, ...normalizedOrders.map((o: Order) => o.id)]),
-      ];
-      await AsyncStorage.setItem(
-        "viewed_order_ids",
-        JSON.stringify(newViewedIds)
-      );
-      setViewedOrderIds(new Set(newViewedIds));
+      if (viewedData) {
+        const viewedIds: number[] = JSON.parse(viewedData);
+        setViewedOrderIds(new Set(viewedIds));
+      } else {
+        setViewedOrderIds(new Set());
+      }
     } catch (error: any) {
       const status = error?.response?.status;
       console.error("❌ Error fetching orders:", {

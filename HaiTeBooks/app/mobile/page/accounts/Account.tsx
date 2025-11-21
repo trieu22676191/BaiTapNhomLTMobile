@@ -155,7 +155,13 @@ const Account: React.FC = () => {
 
       setAuthToken(token);
       const response = await axiosInstance.get(`/orders/user/${user.id}`);
-      const newOrders = response.data || [];
+      const rawOrders = response.data || [];
+
+      // Normalize orders - đảm bảo status là uppercase
+      const newOrders = rawOrders.map((order: any) => ({
+        ...order,
+        status: (order.status || order.statusOrder || "").toUpperCase(),
+      }));
 
       // ✅ Phát hiện đơn hàng có trạng thái thay đổi và xóa khỏi viewedOrderIds
       // để đơn hàng đó được coi là "chưa xem" ở trạng thái mới
@@ -213,8 +219,9 @@ const Account: React.FC = () => {
         try {
           const viewedData = await AsyncStorage.getItem("viewed_order_ids");
           if (viewedData) {
-            const viewedIds = JSON.parse(viewedData);
-            setViewedOrderIds(new Set(viewedIds));
+            const viewedIds: number[] = JSON.parse(viewedData);
+            const viewedSet = new Set<number>(viewedIds);
+            setViewedOrderIds(viewedSet);
           } else {
             setViewedOrderIds(new Set());
           }
@@ -350,7 +357,17 @@ const Account: React.FC = () => {
                   const response = await axiosInstance.get(
                     `/orders/user/${parsed.id}`
                   );
-                  setOrders(response.data || []);
+                  const rawOrders = response.data || [];
+                  // Normalize orders - đảm bảo status là uppercase
+                  const normalizedOrders = rawOrders.map((order: any) => ({
+                    ...order,
+                    status: (
+                      order.status ||
+                      order.statusOrder ||
+                      ""
+                    ).toUpperCase(),
+                  }));
+                  setOrders(normalizedOrders);
                 } catch (error) {
                   console.error("Error fetching orders:", error);
                 }
@@ -358,11 +375,14 @@ const Account: React.FC = () => {
             }
           }
 
-          // Reload viewed orders để cập nhật badge
+          // ✅ Reload viewed orders để cập nhật badge - QUAN TRỌNG!
           const viewedData = await AsyncStorage.getItem("viewed_order_ids");
           if (viewedData) {
-            const viewedIds = JSON.parse(viewedData);
-            setViewedOrderIds(new Set(viewedIds));
+            const viewedIds: number[] = JSON.parse(viewedData);
+            const viewedSet = new Set<number>(viewedIds);
+            setViewedOrderIds(viewedSet);
+          } else {
+            setViewedOrderIds(new Set());
           }
         } catch (error) {
           console.error("Error checking session:", error);
@@ -421,46 +441,34 @@ const Account: React.FC = () => {
   }, []);
 
   // Đếm số lượng orders chưa xem theo status (phải đặt trước early returns)
+  // Normalize status để so sánh (uppercase)
   const orderCounts = {
     pending: orders.filter(
-      (o) => o.status === "PENDING" && !viewedOrderIds.has(o.id)
+      (o) =>
+        (o.status?.toUpperCase() || "") === "PENDING" &&
+        !viewedOrderIds.has(o.id)
     ).length,
     processing: orders.filter(
-      (o) => o.status === "PROCESSING" && !viewedOrderIds.has(o.id)
+      (o) =>
+        (o.status?.toUpperCase() || "") === "PROCESSING" &&
+        !viewedOrderIds.has(o.id)
     ).length,
     shipping: orders.filter(
-      (o) => o.status === "SHIPPING" && !viewedOrderIds.has(o.id)
+      (o) =>
+        (o.status?.toUpperCase() || "") === "SHIPPING" &&
+        !viewedOrderIds.has(o.id)
     ).length,
     completed: orders.filter(
-      (o) => o.status === "COMPLETED" && !viewedOrderIds.has(o.id)
+      (o) =>
+        (o.status?.toUpperCase() || "") === "COMPLETED" &&
+        !viewedOrderIds.has(o.id)
     ).length,
     cancelled: orders.filter(
-      (o) => o.status === "CANCELLED" && !viewedOrderIds.has(o.id)
+      (o) =>
+        (o.status?.toUpperCase() || "") === "CANCELLED" &&
+        !viewedOrderIds.has(o.id)
     ).length,
   };
-
-  // Debug: Log order counts để kiểm tra (phải đặt trước early returns)
-  useEffect(() => {
-    if (!user) return; // Chỉ log khi có user
-    console.log("📊 Order counts updated:", {
-      pending: orderCounts.pending,
-      processing: orderCounts.processing,
-      shipping: orderCounts.shipping,
-      completed: orderCounts.completed,
-      cancelled: orderCounts.cancelled,
-      totalOrders: orders.length,
-      viewedOrders: viewedOrderIds.size,
-    });
-  }, [
-    orderCounts.pending,
-    orderCounts.processing,
-    orderCounts.shipping,
-    orderCounts.completed,
-    orderCounts.cancelled,
-    orders.length,
-    viewedOrderIds.size,
-    user,
-  ]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -609,7 +617,7 @@ const Account: React.FC = () => {
                   </View>
                 )}
               </View>
-              <Text style={styles.orderLabel}>Đang giao hàng</Text>
+              <Text style={styles.orderLabel}>Đang giao</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.orderItem}
