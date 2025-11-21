@@ -891,14 +891,20 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 1.2,
+    height: SCREEN_WIDTH * 1.2, // ✅ Kích thước cố định (tỷ lệ 5:6)
     backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden", // ✅ Đảm bảo ảnh không tràn ra ngoài
+    position: "relative", // ✅ Đảm bảo positioning đúng
   },
   bookImage: {
-    width: "100%",
-    height: "100%",
+    width: SCREEN_WIDTH, // ✅ Chiều rộng cố định
+    height: SCREEN_WIDTH * 1.2, // ✅ Chiều cao cố định
+    resizeMode: "cover", // ✅ Đảm bảo ảnh fill đầy và crop nếu cần
+    position: "absolute", // ✅ Đảm bảo ảnh fill đầy container
+    top: 0,
+    left: 0,
   },
   infoContainer: {
     padding: 16,

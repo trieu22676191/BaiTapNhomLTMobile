@@ -21,6 +21,7 @@ import {
 import BookDetail from "../../components/home/BookDetail";
 import BuyNowButton from "../../components/home/BuyNowButton";
 import SimilarBooksModal from "../../components/home/SimilarBooksModal";
+import BarcodeScanner from "../../components/headerbutton/BarcodeScanner";
 import axiosInstance from "../../config/axiosConfig";
 
 type ApiBook = {
@@ -63,6 +64,7 @@ const CategoryBooks: React.FC = () => {
   const [showSimilarBooks, setShowSimilarBooks] = useState(false);
   const [similarBookId, setSimilarBookId] = useState<number | null>(null);
   const [similarBookTitle, setSimilarBookTitle] = useState<string>("");
+  const [showScanner, setShowScanner] = useState<boolean>(false);
 
   // Update searchText khi search param thay đổi
   useEffect(() => {
@@ -97,14 +99,46 @@ const CategoryBooks: React.FC = () => {
         );
       }
 
-      // Không fetch reviews ở đây để tối ưu performance
-      // Reviews sẽ được fetch khi user mở BookDetail
-      // Set default values cho reviews
-      const booksWithReviews: BookWithReviews[] = booksData.map((book) => ({
-        ...book,
-        averageRating: 0,
-        reviewCount: 0,
-      }));
+      // Fetch reviews cho mỗi sách song song để tối ưu performance
+      const booksWithReviews = await Promise.all(
+        booksData.map(async (book) => {
+          try {
+            const reviewsResp = await axiosInstance.get<any[]>(
+              `/reviews/book/${book.id}`,
+              { cancelToken: source.token }
+            );
+            const reviews = Array.isArray(reviewsResp.data)
+              ? reviewsResp.data
+              : [];
+
+            const approvedReviews = reviews.filter((r: any) =>
+              r?.status ? r.status === "approved" : true
+            );
+
+            const reviewCount = approvedReviews.length;
+            const averageRating =
+              reviewCount > 0
+                ? approvedReviews.reduce(
+                    (acc, curr) => acc + Number(curr.rating || 0),
+                    0
+                  ) / reviewCount
+                : 0;
+
+            return {
+              ...book,
+              averageRating,
+              reviewCount,
+            };
+          } catch (reviewErr) {
+            // Nếu không fetch được reviews, set default values
+            return {
+              ...book,
+              averageRating: 0,
+              reviewCount: 0,
+            };
+          }
+        })
+      );
 
       setBooks(booksWithReviews);
     } catch (err: any) {
@@ -299,9 +333,13 @@ const CategoryBooks: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.headerRight}>
+        <TouchableOpacity
+          style={styles.headerRight}
+          onPress={() => setShowScanner(true)}
+          activeOpacity={0.7}
+        >
           <Ionicons name="barcode-outline" size={24} color="#FFFFFF" />
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Content */}
@@ -351,6 +389,17 @@ const CategoryBooks: React.FC = () => {
           setShowSimilarBooks(false);
           setSimilarBookId(null);
           setSimilarBookTitle("");
+        }}
+      />
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScanner
+        visible={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={(barcode) => {
+          const normalizedBarcode = barcode.trim().replace(/\s+/g, "");
+          setShowScanner(false);
+          setSearchText(normalizedBarcode);
         }}
       />
     </SafeAreaView>
