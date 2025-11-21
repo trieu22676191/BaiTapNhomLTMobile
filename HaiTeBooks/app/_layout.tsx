@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import BotTabs from "../app/mobile/components/BotTabs";
+import FloatingChatbotButton from "../app/mobile/components/FloatingChatbotButton";
 import Header from "../app/mobile/components/Header";
 import {
   setAuthToken,
@@ -204,6 +205,13 @@ export default function RootLayout() {
                   }}
                 />
                 <Stack.Screen
+                  name="mobile/page/accounts/Chatbot"
+                  options={{
+                    headerShown: false,
+                    animation: "none",
+                  }}
+                />
+                <Stack.Screen
                   name="mobile/page/accounts/FavoriteBooks"
                   options={{
                     headerShown: false,
@@ -219,6 +227,7 @@ export default function RootLayout() {
                 />
               </Stack>
               <BotTabs />
+              <FloatingChatbotButton />
             </View>
           </NotificationProvider>
         </CartProvider>

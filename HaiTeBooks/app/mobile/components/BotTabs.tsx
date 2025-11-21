@@ -63,8 +63,9 @@ const BotTabs: React.FC<BotTabsProps> = ({
   useEffect(() => {
     if (pathname === "/") {
       setCurrentTab("home");
-    } else if (pathname === "/account" || pathname.startsWith("/mobile/page/accounts/")) {
+    } else if (pathname === "/account" || (pathname.startsWith("/mobile/page/accounts/") && !pathname.includes("/Chatbot"))) {
       // Nhận diện trang account và tất cả các trang con (MyOrder, OrderDetail, Voucher, etc.)
+      // Loại trừ Chatbot để không highlight tab Account
       setCurrentTab("account");
     } else if (pathname === "/cart" || pathname === "/mobile/page/carts/Cart") {
       setCurrentTab("cart");
@@ -72,6 +73,9 @@ const BotTabs: React.FC<BotTabsProps> = ({
       setCurrentTab("suggestions");
     } else if (pathname === "/mobile/page/notifications/Notification") {
       setCurrentTab("notifications");
+    } else if (pathname?.includes("/Chatbot")) {
+      // Khi ở trang Chatbot, không highlight tab nào cả
+      // Giữ nguyên tab hiện tại
     }
   }, [pathname]);
 
