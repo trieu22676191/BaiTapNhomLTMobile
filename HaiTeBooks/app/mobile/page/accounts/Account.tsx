@@ -420,6 +420,22 @@ const Account: React.FC = () => {
     };
   }, [user?.id, fetchOrders]);
 
+  // ✅ Tự động reload orders định kỳ để badge cập nhật (30 giây)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const interval = setInterval(() => {
+      // Chỉ reload khi app đang active
+      if (AppState.currentState === "active") {
+        fetchOrders();
+      }
+    }, 30000); // 30 giây
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [user?.id, fetchOrders]);
+
   useEffect(() => {
     fetchVoucherCount();
   }, [fetchVoucherCount]);
