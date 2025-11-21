@@ -86,10 +86,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const [showSimilarBooks, setShowSimilarBooks] = useState<boolean>(false);
   const authUserIdRef = React.useRef<number | null>(null);
 
-  // Debug: Log khi showSimilarBooks thay đổi
-  React.useEffect(() => {
-    console.log("🔍 BookDetail - showSimilarBooks changed:", showSimilarBooks);
-  }, [showSimilarBooks]);
+  // Removed debug log to prevent spam
 
   // Refresh cart count when modal opens
   useEffect(() => {
@@ -771,13 +768,12 @@ const BookDetail: React.FC<BookDetailProps> = ({
       </Modal>
 
       {/* SimilarBooksModal - only render if no callback provided (fallback) */}
-      {!onShowSimilarBooks && (
+      {!onShowSimilarBooks && showSimilarBooks && bookId && (
         <SimilarBooksModal
           visible={showSimilarBooks}
           bookId={bookId}
           bookTitle={book?.title}
           onClose={() => {
-            console.log("🔍 Closing SimilarBooksModal");
             setShowSimilarBooks(false);
           }}
         />

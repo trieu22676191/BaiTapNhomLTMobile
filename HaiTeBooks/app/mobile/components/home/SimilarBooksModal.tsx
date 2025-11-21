@@ -213,14 +213,10 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
     </TouchableOpacity>
   );
 
-  console.log("🔍 SimilarBooksModal component called with:", { visible, bookId, bookTitle });
-  
+  // Early return if not visible or no bookId
   if (!visible || !bookId) {
-    console.log("🔍 SimilarBooksModal returning null because:", { visible: visible, bookId: bookId });
     return null;
   }
-
-  console.log("🔍 SimilarBooksModal rendering Modal with visible=true");
 
   return (
     <>
