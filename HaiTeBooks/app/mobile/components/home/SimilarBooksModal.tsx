@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 56,
+    paddingVertical: 6,
+    minHeight: 44,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
@@ -370,21 +370,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backButtonPlaceholder: {
-    width: 40,
+    width: 36,
   },
   headerTitleContainer: {
     flex: 1,
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "700",
     color: "#111827",
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#6B7280",
-    marginTop: 2,
+    marginTop: 1,
   },
   content: {
     flex: 1,
