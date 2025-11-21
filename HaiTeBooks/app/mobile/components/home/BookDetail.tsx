@@ -310,6 +310,18 @@ const BookDetail: React.FC<BookDetailProps> = ({
       const rawReviews = Array.isArray(reviewsResp.data)
         ? reviewsResp.data
         : [];
+
+      // Debug: Kiểm tra xem reviews có userName không
+      console.log("📋 Reviews from API:", rawReviews);
+      if (rawReviews.length > 0) {
+        console.log("👤 First review sample:", {
+          id: rawReviews[0].id,
+          userId: rawReviews[0].userId,
+          userName: rawReviews[0].userName,
+          hasUserName: !!rawReviews[0].userName,
+        });
+      }
+
       setAllReviews(rawReviews);
 
       const approvedReviews = rawReviews.filter((review) =>
