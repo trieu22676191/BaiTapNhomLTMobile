@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Tag,
+  DollarSign,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -29,6 +30,7 @@ const AdminLayout = () => {
     { path: '/admin/books', icon: BookOpen, label: 'Quản lý Sách' },
     { path: '/admin/categories', icon: FolderOpen, label: 'Danh mục' },
     { path: '/admin/orders', icon: ShoppingCart, label: 'Đơn hàng' },
+    { path: '/admin/revenue', icon: DollarSign, label: 'Doanh thu' },
     { path: '/admin/users', icon: Users, label: 'Người dùng' },
     { path: '/admin/reviews', icon: MessageSquare, label: 'Đánh giá' },
     { path: '/admin/promotions', icon: Tag, label: 'Khuyến mãi' },

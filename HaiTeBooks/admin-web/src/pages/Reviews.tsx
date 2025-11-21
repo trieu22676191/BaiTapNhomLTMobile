@@ -297,40 +297,12 @@ const Reviews = () => {
                       <span className="font-medium">{review.userName}</span>
                     </div>
 
-                    {/* Status badge */}
-                    <div className="mb-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}
-                      >
-                        <StatusIcon size={14} className="mr-1" />
-                        {statusInfo.label}
-                      </span>
-                    </div>
-
                     {/* Comment */}
                     <p className="text-gray-700 text-base leading-relaxed">
                       {review.comment}
                     </p>
                   </div>
                 </div>
-                {review.status === "pending" && (
-                  <div className="flex gap-3 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => handleUpdateStatus(review.id, "approved")}
-                      className="px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors inline-flex items-center"
-                    >
-                      <CheckCircle size={18} className="mr-2" />
-                      Duyệt
-                    </button>
-                    <button
-                      onClick={() => handleUpdateStatus(review.id, "rejected")}
-                      className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors inline-flex items-center"
-                    >
-                      <XCircle size={18} className="mr-2" />
-                      Từ chối
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })

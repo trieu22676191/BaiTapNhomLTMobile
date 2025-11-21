@@ -280,7 +280,7 @@ const Dashboard = () => {
       color: "bg-green-500",
       bgColor: "bg-green-50",
       textColor: "text-green-600",
-      link: "/admin/orders?status=completed",
+      link: "/admin/revenue",
     },
     {
       title: "Đơn hàng",

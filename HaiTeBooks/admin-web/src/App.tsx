@@ -13,6 +13,7 @@ import Users from './pages/Users'
 import Categories from './pages/Categories'
 import Reviews from './pages/Reviews'
 import Promotions from './pages/Promotions'
+import Revenue from './pages/Revenue'
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
             <Route path="books/edit/:id" element={<BookForm />} />
             <Route path="orders" element={<Orders />} />
             <Route path="orders/:id" element={<OrderDetail />} />
+            <Route path="revenue" element={<Revenue />} />
             <Route path="users" element={<Users />} />
             <Route path="categories" element={<Categories />} />
             <Route path="reviews" element={<Reviews />} />
