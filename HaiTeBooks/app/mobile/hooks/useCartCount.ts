@@ -56,3 +56,4 @@ export const useCartCount = () => {
   return { count, loading, refresh: fetchCartCount };
 };
 
+export default useCartCount;

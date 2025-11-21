@@ -111,7 +111,14 @@ const MyOrder: React.FC = () => {
         orderItems: order.orderItems || order.items || [],
       }));
 
-      setOrders(normalizedOrders);
+      // Sắp xếp theo độ mới (mới nhất trước)
+      const sortedOrders = normalizedOrders.sort((a: Order, b: Order) => {
+        const dateA = new Date(a.orderDate).getTime();
+        const dateB = new Date(b.orderDate).getTime();
+        return dateB - dateA; // Mới nhất trước
+      });
+
+      setOrders(sortedOrders);
 
       // ✅ CHỈ reload viewedOrderIds, KHÔNG mark tất cả orders là viewed
       // Orders chỉ được mark là viewed khi user click vào chúng
