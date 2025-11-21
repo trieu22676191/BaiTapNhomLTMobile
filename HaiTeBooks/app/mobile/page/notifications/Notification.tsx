@@ -459,6 +459,56 @@ const Notification: React.FC = () => {
     ]);
   };
 
+  // Xóa tất cả thông báo đã đọc
+  const handleDeleteAllRead = async () => {
+    const readNotifications = notifications.filter((n) => n.isRead);
+    
+    if (readNotifications.length === 0) {
+      Alert.alert("Thông báo", "Không có thông báo đã đọc để xóa");
+      return;
+    }
+
+    Alert.alert(
+      "Xác nhận",
+      `Bạn có chắc muốn xóa tất cả ${readNotifications.length} thông báo đã đọc?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem("auth_token");
+              if (!token) return;
+
+              setAuthToken(token);
+
+              // Xóa tất cả thông báo đã đọc
+              await Promise.all(
+                readNotifications.map((noti) =>
+                  axiosInstance.delete(`/notifications/${noti.id}`)
+                )
+              );
+
+              // Update local state
+              setNotifications((prev) =>
+                prev.filter((noti) => !noti.isRead)
+              );
+
+              Alert.alert(
+                "Thành công",
+                `Đã xóa ${readNotifications.length} thông báo đã đọc`
+              );
+            } catch (error: any) {
+              console.error("❌ Lỗi khi xóa tất cả thông báo đã đọc:", error);
+              Alert.alert("Lỗi", "Không thể xóa thông báo");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Parse order ID từ notification content
   const parseOrderId = (content: string): number | null => {
     // Tìm pattern "Đơn hàng #123" hoặc "Đơn #123" hoặc "#123"
@@ -683,6 +733,17 @@ const Notification: React.FC = () => {
             </TouchableOpacity>
           </View>
         )}
+        {/* Nút xóa tất cả thông báo đã đọc - chỉ hiển thị ở tab Đã đọc */}
+        {activeTab === "read" && readCount > 0 && (
+          <View style={styles.markAllContainer}>
+            <TouchableOpacity
+              style={styles.deleteAllButton}
+              onPress={handleDeleteAllRead}
+            >
+              <Text style={styles.deleteAllText}>Xóa tất cả thông báo đã đọc</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Content */}
@@ -757,6 +818,15 @@ const styles = StyleSheet.create({
   markAllText: {
     fontSize: 13,
     color: "#C92127",
+    fontWeight: "600",
+  },
+  deleteAllButton: {
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  deleteAllText: {
+    fontSize: 13,
+    color: "#EF4444",
     fontWeight: "600",
   },
   listContent: {
