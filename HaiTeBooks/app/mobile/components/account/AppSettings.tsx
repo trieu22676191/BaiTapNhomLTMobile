@@ -199,10 +199,20 @@ const AppSettings: React.FC<AppSettingsProps> = ({
       });
 
       if (response.status === 200 || response.status === 204) {
-        Alert.alert("Thành công", "Tài khoản đã được xóa", [
+        const successMessage =
+          response.data?.message || "Tài khoản đã được vô hiệu hóa thành công";
+        Alert.alert("Thành công", successMessage, [
           {
             text: "OK",
-            onPress: () => {
+            onPress: async () => {
+              // ✅ Đăng xuất: Clear auth data
+              await AsyncStorage.multiRemove(["auth_token", "auth_user"]);
+              setAuthToken(undefined);
+
+              // ✅ Chuyển về trang đăng nhập
+              router.replace("/account");
+
+              // ✅ Gọi callback nếu có
               if (onAccountDeleted) {
                 onAccountDeleted();
               }
@@ -396,7 +406,7 @@ const AppSettings: React.FC<AppSettingsProps> = ({
             <View style={styles.actionButtonLeft}>
               <Ionicons name="trash-outline" size={24} color={colors.error} />
               <Text style={[styles.actionButtonText, { color: colors.error }]}>
-                Yêu cầu xóa tài khoản
+                Vô hiệu hóa tài khoản
               </Text>
             </View>
             <Ionicons
@@ -411,7 +421,7 @@ const AppSettings: React.FC<AppSettingsProps> = ({
               {!showConfirmDelete ? (
                 <>
                   <Text style={[styles.warningText, { color: colors.error }]}>
-                    Vui lòng nhập mật khẩu để xác nhận yêu cầu xóa tài khoản
+                    Vui lòng nhập mật khẩu để xác nhận vô hiệu hóa tài khoản
                   </Text>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.inputLabel, { color: colors.text }]}>
@@ -452,8 +462,8 @@ const AppSettings: React.FC<AppSettingsProps> = ({
               ) : (
                 <>
                   <Text style={[styles.warningText, { color: colors.error }]}>
-                    Bạn có chắc chắn muốn xóa tài khoản? Hành động này không thể
-                    hoàn tác.
+                    Bạn có chắc chắn muốn vô hiệu hóa tài khoản? Tài khoản sẽ bị
+                    vô hiệu hóa và bạn sẽ không thể đăng nhập lại.
                   </Text>
                   <Text
                     style={[

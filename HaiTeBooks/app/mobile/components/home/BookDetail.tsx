@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +19,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
+import { useCart } from "../../context/CartContext";
 import BuyNowButton from "./BuyNowButton";
 import SimilarBooksModal from "./SimilarBooksModal";
 
@@ -65,6 +67,8 @@ const BookDetail: React.FC<BookDetailProps> = ({
   onShowSimilarBooks,
 }) => {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { cartCount, refreshCart } = useCart();
   const [book, setBook] = useState<BookDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +90,13 @@ const BookDetail: React.FC<BookDetailProps> = ({
   React.useEffect(() => {
     console.log("🔍 BookDetail - showSimilarBooks changed:", showSimilarBooks);
   }, [showSimilarBooks]);
+
+  // Refresh cart count when modal opens
+  useEffect(() => {
+    if (visible) {
+      refreshCart();
+    }
+  }, [visible, refreshCart]);
 
   useEffect(() => {
     if (!visible) return;
@@ -403,18 +414,52 @@ const BookDetail: React.FC<BookDetailProps> = ({
         statusBarTranslucent={true}
       >
         <View style={styles.overlay}>
-          <SafeAreaView style={styles.container} edges={["top"]}>
-            {/* Header */}
-            <View style={styles.header}>
+          <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+            {/* Header - Fixed at top with safe area padding */}
+            <View
+              style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}
+            >
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={onClose}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="arrow-back" size={24} color="#111827" />
+                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>Chi tiết sách</Text>
-              <View style={styles.backButtonPlaceholder} />
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.headerIconButton}
+                  onPress={() => {
+                    onClose();
+                    router.replace("/");
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="home" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.headerIconButton}
+                  onPress={() => {
+                    onClose();
+                    router.push("/mobile/page/carts/Cart");
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <View style={styles.cartIconContainer}>
+                    <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
+                    {cartCount > 0 && (
+                      <View style={styles.cartBadge}>
+                        <Text style={styles.cartBadgeText}>
+                          {cartCount > 99 ? "99+" : cartCount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Content */}
@@ -440,6 +485,7 @@ const BookDetail: React.FC<BookDetailProps> = ({
                   style={styles.scrollView}
                   contentContainerStyle={styles.scrollContent}
                   showsVerticalScrollIndicator={false}
+                  contentInsetAdjustmentBehavior="automatic"
                 >
                   {/* Book Image */}
                   <View style={styles.imageContainer}>
@@ -755,13 +801,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     minHeight: 56,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-    backgroundColor: "#FFFFFF",
-    zIndex: 10,
+    borderBottomColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#C92127", // ✅ Nền đỏ
+    zIndex: 1000, // ✅ Tăng zIndex để đảm bảo header luôn ở trên
     elevation: 10,
+    position: "relative", // ✅ Đảm bảo header có position
   },
   backButton: {
     width: 40,
@@ -769,15 +816,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  backButtonPlaceholder: {
-    width: 40,
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16, // ✅ Khoảng cách giữa các icon
   },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cartIconContainer: {
+    position: "relative",
+    width: 24,
+    height: 24,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "#C92127",
+  },
+  cartBadgeText: {
+    color: "#C92127",
+    fontSize: 10,
     fontWeight: "800",
-    color: "#111827",
-    textAlign: "center",
+    lineHeight: 12,
   },
   loadingContainer: {
     flex: 1,
@@ -815,6 +888,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    zIndex: 1, // ✅ Đảm bảo ScrollView ở dưới header
   },
   scrollContent: {
     paddingBottom: 160,
