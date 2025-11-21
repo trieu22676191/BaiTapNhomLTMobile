@@ -25,7 +25,6 @@ export const setAuthToken = (token?: string) => {
   if (authToken) {
     // Spring Security yêu cầu format "Bearer {token}"
     axiosInstance.defaults.headers.Authorization = `Bearer ${authToken}`;
-    console.log("🔐 setAuthToken called with token:", authToken.substring(0, 30) + "...");
   } else {
     delete axiosInstance.defaults.headers.Authorization;
   }
@@ -37,10 +36,6 @@ axiosInstance.interceptors.request.use((config) => {
     config.headers = config.headers ?? {};
     // Spring Security yêu cầu format "Bearer {token}"
     config.headers.Authorization = `Bearer ${authToken}`;
-    console.log('🔐 Request:', config.method?.toUpperCase(), config.url);
-    console.log('🔐 Authorization:', config.headers.Authorization?.substring(0, 50) + '...');
-  } else {
-    console.log('⚠️ No authToken found for request:', config.url);
   }
   return config;
 });

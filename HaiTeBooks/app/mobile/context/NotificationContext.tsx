@@ -62,50 +62,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       const data = response.data || [];
       setUnreadCount(data.length);
       setErrorCount(0); // Reset error count khi thành công
-
-      console.log("🔄 Unread notifications refreshed, count:", data.length);
     } catch (error: any) {
       const status = error?.response?.status;
 
       // Xử lý các loại lỗi khác nhau
       if (status === 401 || status === 403) {
         // Token invalid - interceptor sẽ xử lý
-        console.log("⚠️ Token invalid - skipping notification refresh");
         setUnreadCount(0);
         setErrorCount(0); // Reset error count cho auth errors
       } else if (status === 502 || status === 503 || status === 504) {
         // Bad Gateway / Service Unavailable / Gateway Timeout
-        // Backend tạm thời không khả dụng - tăng error count và log (chỉ 3 lần đầu)
-        setErrorCount((prev) => {
-          const newCount = prev + 1;
-          if (newCount <= 3) {
-            // Chỉ log 3 lần đầu để tránh spam
-            console.log(
-              "⚠️ Backend temporarily unavailable (502/503/504) - keeping current count"
-            );
-          }
-          return newCount;
-        });
+        // Backend tạm thời không khả dụng - tăng error count
+        setErrorCount((prev) => prev + 1);
         // Không set unreadCount về 0, giữ nguyên giá trị hiện tại
       } else if (status >= 500) {
-        // Server errors khác - tăng error count và log (chỉ 3 lần đầu)
-        setErrorCount((prev) => {
-          const newCount = prev + 1;
-          if (newCount <= 3) {
-            console.warn(
-              "⚠️ Server error when fetching notifications:",
-              status
-            );
-          }
-          return newCount;
-        });
+        // Server errors khác - tăng error count
+        setErrorCount((prev) => prev + 1);
         // Giữ nguyên count hiện tại thay vì set về 0
       } else {
         // Các lỗi khác (network, timeout, etc.) - không tăng error count
-        console.warn(
-          "⚠️ Error fetching notifications:",
-          error?.message || "Unknown error"
-        );
         // Giữ nguyên count hiện tại
       }
     } finally {
@@ -150,7 +125,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       "change",
       (nextAppState: AppStateStatus) => {
         if (nextAppState === "active") {
-          console.log("📱 App became active - refreshing notifications");
           refreshUnreadCount();
         }
       }
