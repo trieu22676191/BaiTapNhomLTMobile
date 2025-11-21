@@ -41,101 +41,306 @@ const Notification: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("unread");
 
-  // Load user từ AsyncStorage
+  // Load user từ AsyncStorage và fetch notifications
   useEffect(() => {
-    const loadUser = async () => {
+    const loadUserAndFetchNotifications = async () => {
       try {
+        setLoading(true);
+        
+        // Load user trước
         const savedUser = await AsyncStorage.getItem("auth_user");
-        if (savedUser) {
-          const parsed: User = JSON.parse(savedUser);
-          setUser(parsed);
+        if (!savedUser) {
+          console.log("⚠️ No user found in AsyncStorage");
+          setLoading(false);
+          return;
         }
-      } catch (error) {
-        console.error("Error loading user:", error);
+
+        let parsed: User = JSON.parse(savedUser);
+        console.log("📋 Parsed user from AsyncStorage:", JSON.stringify(parsed, null, 2));
+        console.log("📋 User ID:", parsed?.id);
+        console.log("📋 User keys:", Object.keys(parsed || {}));
+
+        // Load token trước
+        const token = await AsyncStorage.getItem("auth_token");
+        if (!token) {
+          console.log("⚠️ No token found");
+          setLoading(false);
+          return;
+        }
+
+        setAuthToken(token);
+
+        // Nếu user không có id, thử fetch lại từ API
+        if (!parsed?.id) {
+          console.log("⚠️ User ID not found in AsyncStorage, fetching from API...");
+          
+          try {
+            const response = await axiosInstance.get("/users/me");
+            const apiUser = response.data;
+            
+            console.log("📥 API User Response:", JSON.stringify(apiUser, null, 2));
+            console.log("📥 API User ID:", apiUser?.id);
+            console.log("📥 API User keys:", Object.keys(apiUser || {}));
+
+            // Normalize user object từ API response
+            parsed = {
+              id: apiUser?.id || apiUser?.userId,
+              username: apiUser?.username || parsed.username || "",
+              password: "", // Không lưu password
+              email: apiUser?.email || parsed.email || "",
+              full_name: apiUser?.fullName || apiUser?.full_name || parsed.full_name || "",
+              phone: apiUser?.phone || apiUser?.phoneNumber || apiUser?.sdt || parsed.phone || "",
+              address: apiUser?.address || apiUser?.diaChi || parsed.address || "",
+              role_id: (apiUser?.role?.name || apiUser?.role || apiUser?.role_id || parsed.role_id || "user").toString().toLowerCase().replace("role_", "") as "admin" | "user",
+            };
+
+            console.log("✅ Normalized User from API:", JSON.stringify(parsed, null, 2));
+            console.log("✅ Normalized User ID:", parsed.id);
+
+            // Cập nhật AsyncStorage với user đầy đủ thông tin
+            await AsyncStorage.setItem("auth_user", JSON.stringify(parsed));
+          } catch (apiError: any) {
+            console.error("❌ Failed to fetch user from API:", apiError);
+            console.error("❌ API Error details:", {
+              message: apiError?.message,
+              response: apiError?.response?.data,
+              status: apiError?.response?.status,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+
+        if (!parsed?.id) {
+          console.error("❌ User ID still not found after API fetch");
+          setLoading(false);
+          return;
+        }
+
+        setUser(parsed);
+        console.log("✅ User loaded with ID:", parsed.id);
+
+        // Fetch notifications ngay sau khi có user và token
+        console.log(`📡 Fetching notifications for user ${parsed.id}...`);
+        const response = await axiosInstance.get(`/notifications/${parsed.id}`);
+        const data = response.data || [];
+
+        console.log("📥 Raw notifications data:", JSON.stringify(data, null, 2));
+        console.log("📥 Data type:", Array.isArray(data) ? "array" : typeof data);
+        console.log("📥 Data length:", Array.isArray(data) ? data.length : "N/A");
+
+        // Kiểm tra nếu data không phải là array
+        if (!Array.isArray(data)) {
+          console.error("❌ Expected array but got:", typeof data);
+          setNotifications([]);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+
+        // Normalize data - xử lý nhiều format có thể có
+        const userId = parsed.id; // Lưu userId để dùng trong map
+        const normalizedNotifications: Notification[] = data.map((noti: any, index: number) => {
+          try {
+            // Xử lý isRead với nhiều format có thể có
+            // Jackson có thể serialize boolean isRead thành "read" hoặc "isRead"
+            let isReadValue = false;
+            if (noti.isRead !== undefined && noti.isRead !== null) {
+              isReadValue = Boolean(noti.isRead);
+            } else if (noti.is_read !== undefined && noti.is_read !== null) {
+              isReadValue = Boolean(noti.is_read);
+            } else if (noti.read !== undefined && noti.read !== null) {
+              isReadValue = Boolean(noti.read);
+            }
+
+            // Xử lý createdAt - có thể là string hoặc object
+            let createdAtValue = "";
+            if (noti.createdAt) {
+              if (typeof noti.createdAt === "string") {
+                createdAtValue = noti.createdAt;
+              } else if (typeof noti.createdAt === "object") {
+                // Nếu là object (LocalDateTime từ Java), convert sang string
+                createdAtValue = JSON.stringify(noti.createdAt);
+              }
+            } else if (noti.created_at) {
+              createdAtValue = noti.created_at;
+            }
+
+            const normalized = {
+              id: noti.id || index,
+              title: noti.title || "",
+              content: noti.content || "",
+              createdAt: createdAtValue,
+              isRead: isReadValue,
+              senderId: noti.senderId || noti.sender_id,
+              receiverId: noti.receiverId || noti.receiver_id || userId,
+            };
+
+            console.log(`📌 Notification ${normalized.id}:`, {
+              raw: { 
+                id: noti.id,
+                isRead: noti.isRead, 
+                is_read: noti.is_read, 
+                read: noti.read,
+                createdAt: noti.createdAt,
+              },
+              normalized: { 
+                id: normalized.id,
+                isRead: normalized.isRead,
+                createdAt: normalized.createdAt,
+              },
+            });
+
+            return normalized;
+          } catch (error) {
+            console.error(`❌ Error normalizing notification at index ${index}:`, error);
+            console.error(`❌ Raw notification data:`, noti);
+            // Return a fallback notification
+            return {
+              id: index,
+              title: "Lỗi",
+              content: "Không thể tải thông báo này",
+              createdAt: "",
+              isRead: false,
+              receiverId: userId,
+            };
+          }
+        });
+
+        console.log(
+          "✅ Normalized notifications:",
+          JSON.stringify(
+            normalizedNotifications.map((n) => ({ id: n.id, isRead: n.isRead })),
+            null,
+            2
+          )
+        );
+
+        setNotifications(normalizedNotifications);
+        console.log(`✅ Loaded ${normalizedNotifications.length} notifications`);
+      } catch (error: any) {
+        console.error("❌ Lỗi khi tải thông báo:", error);
+        console.error("❌ Error details:", {
+          message: error?.message,
+          response: error?.response?.data,
+          status: error?.response?.status,
+        });
+        setNotifications([]);
+        if (error?.response?.status !== 401 && error?.response?.status !== 403) {
+          Alert.alert("Lỗi", "Không thể tải thông báo. Vui lòng thử lại.");
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
     };
-    loadUser();
+
+    loadUserAndFetchNotifications();
   }, []);
 
-  // Fetch notifications
+  // Fetch notifications function để dùng cho refresh
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) {
+      console.log("⚠️ Cannot fetch notifications: user ID not available");
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
     try {
+      setRefreshing(true);
       const token = await AsyncStorage.getItem("auth_token");
       if (!token) {
+        console.log("⚠️ No token found for refresh");
         setLoading(false);
+        setRefreshing(false);
         return;
       }
 
       setAuthToken(token);
+      console.log(`📡 Refreshing notifications for user ${user.id}...`);
       const response = await axiosInstance.get(`/notifications/${user.id}`);
       const data = response.data || [];
 
-      console.log("📥 Raw notifications data:", JSON.stringify(data, null, 2));
+      console.log("📥 Raw notifications data (refresh):", JSON.stringify(data, null, 2));
+      console.log("📥 Data type:", Array.isArray(data) ? "array" : typeof data);
+      console.log("📥 Data length:", Array.isArray(data) ? data.length : "N/A");
 
-      // Normalize data - xử lý nhiều format có thể có
-      const normalizedNotifications: Notification[] = data.map((noti: any) => {
-        // Xử lý isRead với nhiều format có thể có
-        // Jackson có thể serialize boolean isRead thành "read" hoặc "isRead"
-        let isReadValue = false;
-        if (noti.isRead !== undefined && noti.isRead !== null) {
-          isReadValue = Boolean(noti.isRead);
-        } else if (noti.is_read !== undefined && noti.is_read !== null) {
-          isReadValue = Boolean(noti.is_read);
-        } else if (noti.read !== undefined && noti.read !== null) {
-          isReadValue = Boolean(noti.read);
+      // Kiểm tra nếu data không phải là array
+      if (!Array.isArray(data)) {
+        console.error("❌ Expected array but got:", typeof data);
+        setNotifications([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      // Normalize data
+      const userId = user.id;
+      const normalizedNotifications: Notification[] = data.map((noti: any, index: number) => {
+        try {
+          let isReadValue = false;
+          if (noti.isRead !== undefined && noti.isRead !== null) {
+            isReadValue = Boolean(noti.isRead);
+          } else if (noti.is_read !== undefined && noti.is_read !== null) {
+            isReadValue = Boolean(noti.is_read);
+          } else if (noti.read !== undefined && noti.read !== null) {
+            isReadValue = Boolean(noti.read);
+          }
+
+          // Xử lý createdAt - có thể là string hoặc object
+          let createdAtValue = "";
+          if (noti.createdAt) {
+            if (typeof noti.createdAt === "string") {
+              createdAtValue = noti.createdAt;
+            } else if (typeof noti.createdAt === "object") {
+              // Nếu là object (LocalDateTime từ Java), convert sang string
+              createdAtValue = JSON.stringify(noti.createdAt);
+            }
+          } else if (noti.created_at) {
+            createdAtValue = noti.created_at;
+          }
+
+          return {
+            id: noti.id || index,
+            title: noti.title || "",
+            content: noti.content || "",
+            createdAt: createdAtValue,
+            isRead: isReadValue,
+            senderId: noti.senderId || noti.sender_id,
+            receiverId: noti.receiverId || noti.receiver_id || userId,
+          };
+        } catch (error) {
+          console.error(`❌ Error normalizing notification at index ${index}:`, error);
+          console.error(`❌ Raw notification data:`, noti);
+          return {
+            id: index,
+            title: "Lỗi",
+            content: "Không thể tải thông báo này",
+            createdAt: "",
+            isRead: false,
+            receiverId: userId,
+          };
         }
-
-        const normalized = {
-          id: noti.id,
-          title: noti.title || "",
-          content: noti.content || "",
-          createdAt: noti.createdAt || noti.created_at || "",
-          isRead: isReadValue,
-          senderId: noti.senderId || noti.sender_id,
-          receiverId: noti.receiverId || noti.receiver_id,
-        };
-
-        console.log(`📌 Notification ${normalized.id}:`, {
-          raw: { isRead: noti.isRead, is_read: noti.is_read, read: noti.read },
-          normalized: { isRead: normalized.isRead },
-        });
-
-        return normalized;
       });
 
-      console.log(
-        "✅ Normalized notifications:",
-        JSON.stringify(
-          normalizedNotifications.map((n) => ({ id: n.id, isRead: n.isRead })),
-          null,
-          2
-        )
-      );
-
       setNotifications(normalizedNotifications);
+      console.log(`✅ Refreshed ${normalizedNotifications.length} notifications`);
     } catch (error: any) {
-      console.error("❌ Lỗi khi tải thông báo:", error);
-      setNotifications([]);
+      console.error("❌ Lỗi khi refresh thông báo:", error);
+      console.error("❌ Error details:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
       if (error?.response?.status !== 401 && error?.response?.status !== 403) {
-        Alert.alert("Lỗi", "Không thể tải thông báo");
+        Alert.alert("Lỗi", "Không thể tải thông báo. Vui lòng thử lại.");
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [user?.id]);
-
-  // Fetch khi user thay đổi
-  useEffect(() => {
-    if (user?.id) {
-      fetchNotifications();
-    }
-  }, [user?.id, fetchNotifications]);
 
   // Refresh badge khi focus vào trang (không refresh danh sách tự động)
   useFocusEffect(
@@ -343,10 +548,10 @@ const Notification: React.FC = () => {
         onPress={() => handleNotificationPress(item)}
         activeOpacity={0.7}
       >
+        {!item.isRead && <View style={styles.unreadDot} />}
         <View style={styles.notificationContent}>
           <View style={styles.notificationHeader}>
             <Text style={styles.notificationTitle}>{item.title}</Text>
-            {!item.isRead && <View style={styles.unreadDot} />}
           </View>
           <Text style={styles.notificationText}>{item.content}</Text>
           <Text style={styles.notificationTime}>
@@ -413,7 +618,7 @@ const Notification: React.FC = () => {
         />
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           {activeTab === "unread"
-            ? "Không có thông báo chưa đọc"
+            ? "Hiện tại chưa có thông báo mới"
             : "Không có thông báo đã đọc"}
         </Text>
       </View>
@@ -577,6 +782,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+    position: "relative",
   },
   notificationItemUnread: {
     backgroundColor: "#FEF3C7",
@@ -598,11 +804,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#C92127",
-    marginLeft: 8,
+    zIndex: 1,
   },
   notificationText: {
     fontSize: 14,
