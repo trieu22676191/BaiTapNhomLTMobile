@@ -163,13 +163,38 @@ const OrderDetail = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    if (!dateString) return "N/A";
+    try {
+      // Parse date string từ backend
+      let date: Date;
+      
+      // Kiểm tra xem date string có timezone info không
+      const hasTimezone = dateString.endsWith("Z") || 
+                         /[+-]\d{2}:\d{2}$/.test(dateString);
+      
+      if (!hasTimezone && dateString.includes("T")) {
+        // Nếu không có timezone và có format ISO, giả sử backend trả về UTC
+        date = new Date(dateString + "Z");
+      } else {
+        date = new Date(dateString);
+      }
+      
+      if (isNaN(date.getTime())) return "N/A";
+      
+      // Format với timezone Việt Nam (Asia/Ho_Chi_Minh = UTC+7)
+      return date.toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    } catch (error) {
+      console.error("Lỗi format date:", dateString, error);
+      return "N/A";
+    }
   };
 
   if (loading) {

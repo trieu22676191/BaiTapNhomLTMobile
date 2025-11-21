@@ -177,14 +177,36 @@ const Orders = () => {
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return "N/A";
     try {
-      const date = new Date(dateString);
+      // Parse date string từ backend
+      let date: Date;
+      
+      // Kiểm tra xem date string có timezone info không
+      // Format có timezone: "2024-01-01T10:00:00Z" hoặc "2024-01-01T10:00:00+07:00"
+      // Format không có timezone: "2024-01-01T10:00:00"
+      const hasTimezone = dateString.endsWith("Z") || 
+                         /[+-]\d{2}:\d{2}$/.test(dateString); // Có +HH:MM hoặc -HH:MM ở cuối
+      
+      if (!hasTimezone && dateString.includes("T")) {
+        // Nếu không có timezone và có format ISO, giả sử backend trả về UTC
+        // Thêm Z để parse như UTC
+        date = new Date(dateString + "Z");
+      } else {
+        // Nếu đã có timezone, parse bình thường
+        date = new Date(dateString);
+      }
+      
       if (isNaN(date.getTime())) return "N/A";
-      return date.toLocaleDateString("vi-VN", {
+      
+      // Format với timezone Việt Nam (Asia/Ho_Chi_Minh = UTC+7)
+      // toLocaleString sẽ tự động convert từ UTC sang VN timezone
+      return date.toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
       });
     } catch (error) {
       console.error("Lỗi format date:", dateString, error);
