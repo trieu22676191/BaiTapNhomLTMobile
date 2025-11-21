@@ -55,11 +55,6 @@ const Account: React.FC = () => {
   const [viewedOrderIds, setViewedOrderIds] = useState<Set<number>>(new Set());
   const params = useLocalSearchParams<{ next?: string; bookId?: string }>();
 
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log("showAppSettings changed to:", showAppSettings);
-  }, [showAppSettings]);
-
   // Rehydrate session when Account mounts
   useEffect(() => {
     const restoreSession = async () => {
@@ -180,9 +175,6 @@ const Account: React.FC = () => {
           if (prevStatus && prevStatus !== newOrder.status) {
             // Trạng thái đã thay đổi
             statusChangedOrderIds.push(newOrder.id);
-            console.log(
-              `🔄 Order #${newOrder.id} status changed: ${prevStatus} → ${newOrder.status}`
-            );
           }
         });
 
@@ -410,7 +402,6 @@ const Account: React.FC = () => {
 
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
-        console.log("📱 App became active - refreshing orders");
         fetchOrders();
       }
     });
@@ -420,7 +411,7 @@ const Account: React.FC = () => {
     };
   }, [user?.id, fetchOrders]);
 
-  // ✅ Tự động reload orders định kỳ để badge cập nhật (30 giây)
+  // ✅ Tự động reload orders định kỳ để badge cập nhật (5 giây)
   useEffect(() => {
     if (!user?.id) return;
 
@@ -429,7 +420,7 @@ const Account: React.FC = () => {
       if (AppState.currentState === "active") {
         fetchOrders();
       }
-    }, 30000); // 30 giây
+    }, 5000); // 5 giây
 
     return () => {
       clearInterval(interval);
@@ -539,12 +530,10 @@ const Account: React.FC = () => {
 
   // Nếu đang hiển thị AppSettings
   if (showAppSettings && user) {
-    console.log("Rendering AppSettings, user:", user?.id);
     return (
       <AppSettings
         user={user}
         onBack={() => {
-          console.log("AppSettings onBack called");
           setShowAppSettings(false);
         }}
         onAccountDeleted={handleLogout}
@@ -691,7 +680,6 @@ const Account: React.FC = () => {
             iconColor="#C92127"
             label="Hồ sơ cá nhân"
             onPress={() => {
-              console.log("Profile button clicked");
               setShowProfile(true);
             }}
           />
@@ -700,9 +688,7 @@ const Account: React.FC = () => {
             iconColor="#C92127"
             label="Cài đặt ứng dụng"
             onPress={() => {
-              console.log("App Settings button clicked, user:", user?.id);
               setShowAppSettings(true);
-              console.log("showAppSettings set to:", true);
             }}
           />
           <MenuItem
