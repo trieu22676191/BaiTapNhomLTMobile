@@ -49,7 +49,10 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
   const uri = item.imageUrl || "https://via.placeholder.com/300x400";
 
   const handleShowSimilarBooks = (bookId: number, bookTitle?: string) => {
-    console.log("🔍 Card: handleShowSimilarBooks called", { bookId, bookTitle });
+    console.log("🔍 Card: handleShowSimilarBooks called", {
+      bookId,
+      bookTitle,
+    });
     setSimilarBookId(bookId);
     setSimilarBookTitle(bookTitle || "");
     setShowBookDetail(false); // Đóng BookDetail trước
@@ -162,7 +165,10 @@ const Card: React.FC<{ item: BookWithReviews }> = ({ item }) => {
           setShowBookDetail(true);
         }}
         onShowSimilarBooks={(bookId, bookTitle) => {
-          console.log("🔍 ProductCard: onShowSimilarBooks called", { bookId, bookTitle });
+          console.log("🔍 ProductCard: onShowSimilarBooks called", {
+            bookId,
+            bookTitle,
+          });
           setSimilarBookId(bookId);
           setSimilarBookTitle(bookTitle || "");
           setShowBookDetail(false); // Đóng BookDetail trước
@@ -328,30 +334,34 @@ const ProductCard: React.FC<ProductCardProps> = ({ refreshTrigger }) => {
 
   return (
     <View>
-      {Object.entries(sections).map(([category, items]) => (
-        <View key={category} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{category}</Text>
-            <TouchableOpacity
-              style={styles.viewMoreButton}
-              onPress={() => handleViewMore(category)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.viewMoreText}>Xem thêm</Text>
-              <Ionicons name="chevron-forward" size={16} color="#C92127" />
-            </TouchableOpacity>
-          </View>
+      {Object.entries(sections).map(([category, items]) => {
+        // Giới hạn tối đa 8 sách cho mỗi thể loại
+        const limitedItems = items.slice(0, 8);
+        return (
+          <View key={category} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{category}</Text>
+              <TouchableOpacity
+                style={styles.viewMoreButton}
+                onPress={() => handleViewMore(category)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewMoreText}>Xem thêm</Text>
+                <Ionicons name="chevron-forward" size={16} color="#C92127" />
+              </TouchableOpacity>
+            </View>
 
-          <FlatList
-            data={items}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.list}
-            renderItem={({ item }) => <Card item={item} />}
-          />
-        </View>
-      ))}
+            <FlatList
+              data={limitedItems}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.list}
+              renderItem={({ item }) => <Card item={item} />}
+            />
+          </View>
+        );
+      })}
     </View>
   );
 };
