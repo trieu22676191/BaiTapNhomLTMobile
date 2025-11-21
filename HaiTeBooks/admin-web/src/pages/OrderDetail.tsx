@@ -166,7 +166,8 @@ const OrderDetail = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
-      // Parse date string từ backend
+      // Backend trả về LocalDateTime không có timezone (ví dụ: "2024-11-22T01:39:00")
+      // Parse trực tiếp và format theo định dạng "HH:mm DD/MM/YYYY" - không convert timezone
       let date: Date;
       
       // Kiểm tra xem date string có timezone info không
@@ -174,24 +175,24 @@ const OrderDetail = () => {
                          /[+-]\d{2}:\d{2}$/.test(dateString);
       
       if (!hasTimezone && dateString.includes("T")) {
-        // Nếu không có timezone và có format ISO, giả sử backend trả về UTC
-        date = new Date(dateString + "Z");
+        // Backend trả về LocalDateTime không có timezone
+        // Parse như local time (không thêm Z) để giữ nguyên thời gian từ database
+        date = new Date(dateString);
       } else {
+        // Nếu đã có timezone, parse bình thường
         date = new Date(dateString);
       }
       
       if (isNaN(date.getTime())) return "N/A";
       
-      // Format với timezone Việt Nam (Asia/Ho_Chi_Minh = UTC+7)
-      return date.toLocaleString("vi-VN", {
-        timeZone: "Asia/Ho_Chi_Minh",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
+      // Format theo định dạng "HH:mm DD/MM/YYYY" - không convert timezone
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      
+      return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch (error) {
       console.error("Lỗi format date:", dateString, error);
       return "N/A";

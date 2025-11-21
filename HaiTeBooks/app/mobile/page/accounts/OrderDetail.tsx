@@ -216,37 +216,25 @@ const OrderDetail: React.FC = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
-      // Parse date string từ backend
-      let date: Date;
-
-      // Kiểm tra xem date string có timezone info không
-      // Format có timezone: "2024-01-01T10:00:00Z" hoặc "2024-01-01T10:00:00+07:00"
-      // Format không có timezone: "2024-01-01T10:00:00"
+      // Backend trả về LocalDateTime không có timezone (ví dụ: "2024-11-22T01:39:00")
+      // Parse trực tiếp và format theo "HH:mm DD/MM/YYYY" - không convert timezone
       const hasTimezone =
-        dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString); // Có +HH:MM hoặc -HH:MM ở cuối
+        dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString);
 
-      if (!hasTimezone && dateString.includes("T")) {
-        // Nếu không có timezone và có format ISO, giả sử backend trả về UTC
-        // Thêm Z để parse như UTC
-        date = new Date(dateString + "Z");
-      } else {
-        // Nếu đã có timezone, parse bình thường
-        date = new Date(dateString);
-      }
+      const date = !hasTimezone && dateString.includes("T")
+        ? new Date(dateString)
+        : new Date(dateString);
 
       if (isNaN(date.getTime())) return "N/A";
 
-      // Format với timezone Việt Nam (Asia/Ho_Chi_Minh = UTC+7)
-      // toLocaleString sẽ tự động convert từ UTC sang VN timezone
-      return date.toLocaleString("vi-VN", {
-        timeZone: "Asia/Ho_Chi_Minh",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
+      // Format theo định dạng "HH:mm DD/MM/YYYY" - không convert timezone
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+
+      return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch (error) {
       console.error("Error formatting date:", error);
       return "N/A";

@@ -558,13 +558,13 @@ const Notification: React.FC = () => {
       if (diffHours < 24) return `${diffHours} giờ trước`;
       if (diffDays < 7) return `${diffDays} ngày trước`;
 
-      return date.toLocaleDateString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      // Format theo định dạng "HH:mm DD/MM/YYYY" - không convert timezone
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch (error) {
       return "";
     }

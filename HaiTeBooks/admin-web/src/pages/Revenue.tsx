@@ -61,12 +61,22 @@ const Revenue = () => {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    if (!dateString) return "N/A";
+    try {
+      // Backend trả về LocalDateTime không có timezone
+      // Parse trực tiếp và format theo "DD/MM/YYYY" - không convert timezone
+      const hasTimezone = dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString);
+      const date = !hasTimezone && dateString.includes("T") 
+        ? new Date(dateString) 
+        : new Date(dateString);
+      if (isNaN(date.getTime())) return "N/A";
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return "N/A";
+    }
   };
 
   const calculateRevenue = (periodType: PeriodType, dateValue?: string, monthValue?: string, yearValue?: string): RevenueData[] => {

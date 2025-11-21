@@ -61,13 +61,26 @@ const Reviews = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    if (!dateString) return "N/A";
+    try {
+      // Backend trả về LocalDateTime không có timezone
+      // Parse trực tiếp và format theo "HH:mm DD/MM/YYYY" - không convert timezone
+      const hasTimezone =
+        dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString);
+      const date =
+        !hasTimezone && dateString.includes("T")
+          ? new Date(dateString)
+          : new Date(dateString);
+      if (isNaN(date.getTime())) return "N/A";
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${hours}:${minutes} ${day}/${month}/${year}`;
+    } catch {
+      return "N/A";
+    }
   };
 
   const handleDeleteReview = async (reviewId: number) => {

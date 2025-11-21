@@ -510,7 +510,27 @@ const Dashboard = () => {
                     </p>
                     <p className="text-xs text-gray-500">
                       {formatCurrency(order.totalAmount)} •{" "}
-                      {new Date(order.createdAt).toLocaleString("vi-VN")}
+                      {(() => {
+                        const dateString = order.createdAt;
+                        if (!dateString) return "N/A";
+                        try {
+                          // Backend trả về LocalDateTime không có timezone
+                          // Parse trực tiếp và format theo "HH:mm DD/MM/YYYY" - không convert timezone
+                          const hasTimezone = dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString);
+                          const date = !hasTimezone && dateString.includes("T") 
+                            ? new Date(dateString) 
+                            : new Date(dateString);
+                          if (isNaN(date.getTime())) return "N/A";
+                          const hours = String(date.getHours()).padStart(2, "0");
+                          const minutes = String(date.getMinutes()).padStart(2, "0");
+                          const day = String(date.getDate()).padStart(2, "0");
+                          const month = String(date.getMonth() + 1).padStart(2, "0");
+                          const year = date.getFullYear();
+                          return `${hours}:${minutes} ${day}/${month}/${year}`;
+                        } catch {
+                          return "N/A";
+                        }
+                      })()}
                     </p>
                   </div>
                 </div>

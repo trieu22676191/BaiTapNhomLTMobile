@@ -302,13 +302,16 @@ const BookDetail: React.FC<BookDetailProps> = ({
   const formatReviewDate = useCallback((value?: string) => {
     if (!value) return "";
     try {
-      return new Date(value).toLocaleDateString("vi-VN", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      // Backend trả về LocalDateTime không có timezone
+      // Parse trực tiếp và format theo "HH:mm DD/MM/YYYY" - không convert timezone
+      const date = new Date(value);
+      if (isNaN(date.getTime())) return value;
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${hours}:${minutes} ${day}/${month}/${year}`;
     } catch {
       return value;
     }

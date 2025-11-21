@@ -124,13 +124,14 @@ const Voucher: React.FC = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
+      // Backend trả về LocalDateTime không có timezone
+      // Parse trực tiếp và format theo "DD/MM/YYYY" - không convert timezone
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return "N/A";
-      return date.toLocaleDateString("vi-VN", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
     } catch (error) {
       return "N/A";
     }
