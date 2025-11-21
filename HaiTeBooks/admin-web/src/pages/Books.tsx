@@ -1,8 +1,10 @@
 import { Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import axiosInstance from "../config/axios";
 import { Book, Category } from "../types";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const Books = () => {
   const location = useLocation(); // ⭐ Detect navigation
@@ -17,6 +19,18 @@ const Books = () => {
   );
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     console.log("📚 Books page loaded/refreshed");
@@ -54,18 +68,27 @@ const Books = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa sách này?")) {
-      return;
-    }
+  const handleDelete = (id: number) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Xác nhận xóa sách",
+      message: "Bạn có chắc chắn muốn xóa sách này?",
+      type: "danger",
+      onConfirm: () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        performDelete(id);
+      },
+    });
+  };
 
+  const performDelete = async (id: number) => {
     try {
       await axiosInstance.delete(`/books/${id}`);
       setBooks(books.filter((book) => book.id !== id));
-      alert("Xóa sách thành công!");
+      toast.success("Xóa sách thành công!");
     } catch (error) {
       console.error("Lỗi khi xóa sách:", error);
-      alert("Có lỗi xảy ra khi xóa sách!");
+      toast.error("Có lỗi xảy ra khi xóa sách!");
     }
   };
 
@@ -462,6 +485,18 @@ const Books = () => {
           </div>
         )}
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() =>
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
+        }
+      />
     </div>
   );
 };

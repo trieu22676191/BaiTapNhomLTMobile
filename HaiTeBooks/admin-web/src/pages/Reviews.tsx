@@ -1,5 +1,6 @@
 import { CheckCircle, Clock, Star, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 import axiosInstance from "../config/axios";
 import { Review } from "../types";
 
@@ -29,7 +30,7 @@ const Reviews = () => {
 
   const fetchReviews = async () => {
     if (!inputId && viewMode !== "all") {
-      alert("Vui lòng nhập ID!");
+      toast.error("Vui lòng nhập ID!");
       return;
     }
 
@@ -48,7 +49,7 @@ const Reviews = () => {
     } catch (error) {
       console.error("Lỗi khi tải đánh giá:", error);
       setReviews([]);
-      alert("Không tìm thấy đánh giá!");
+      toast.error("Không tìm thấy đánh giá!");
     } finally {
       setLoading(false);
     }
@@ -62,10 +63,10 @@ const Reviews = () => {
           review.id === id ? { ...review, status: status as any } : review
         )
       );
-      alert("Cập nhật trạng thái thành công!");
+      toast.success("Cập nhật trạng thái thành công!");
     } catch (error) {
       console.error("Lỗi khi cập nhật trạng thái:", error);
-      alert("Có lỗi xảy ra!");
+      toast.error("Có lỗi xảy ra!");
     }
   };
 
@@ -145,7 +146,7 @@ const Reviews = () => {
               } catch (error) {
                 console.error("Lỗi khi tải đánh giá:", error);
                 setReviews([]);
-                alert("Không tìm thấy đánh giá!");
+                toast.error("Không tìm thấy đánh giá!");
               } finally {
                 setLoading(false);
               }

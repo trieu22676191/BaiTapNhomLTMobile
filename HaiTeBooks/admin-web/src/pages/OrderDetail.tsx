@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import axiosInstance from "../config/axios";
 import { Order } from "../types";
 
@@ -91,7 +92,7 @@ const OrderDetail = () => {
       setOrder(normalizedOrder);
     } catch (error) {
       console.error("Lỗi khi tải đơn hàng:", error);
-      alert("Không thể tải thông tin đơn hàng!");
+      toast.error("Không thể tải thông tin đơn hàng!");
       navigate("/admin/orders");
     } finally {
       setLoading(false);
@@ -111,7 +112,7 @@ const OrderDetail = () => {
           status: statusUpperCase,
         });
         setOrder({ ...order, status: newStatus as any });
-        alert("Cập nhật trạng thái thành công!");
+        toast.success("Cập nhật trạng thái thành công!");
       } catch (error: any) {
         // Nếu lỗi 403, có thể là lỗi serialization nhưng update đã thành công
         // Cập nhật UI ngay với status mới vì backend có thể đã update
@@ -136,7 +137,7 @@ const OrderDetail = () => {
             );
           });
 
-          alert("Cập nhật trạng thái thành công!");
+          toast.success("Cập nhật trạng thái thành công!");
           setUpdating(false);
           return; // Không throw error nữa
         }
@@ -146,7 +147,7 @@ const OrderDetail = () => {
       }
     } catch (error: any) {
       console.error("Lỗi khi cập nhật trạng thái:", error);
-      alert(
+      toast.error(
         "Không thể cập nhật trạng thái: " +
           (error?.response?.data?.message || error.message)
       );

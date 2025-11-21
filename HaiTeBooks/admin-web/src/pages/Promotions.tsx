@@ -9,9 +9,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import axiosInstance from "../config/axios";
 import { useAuth } from "../contexts/AuthContext";
 import { Promotion } from "../types";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const Promotions = () => {
   const { user } = useAuth();
@@ -31,6 +33,18 @@ const Promotions = () => {
     quantity: 0,
     minimumOrderAmount: "" as string | number,
     maxDiscountAmount: "" as string | number,
+  });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
   });
 
   // Helper function để xác định status hiện tại
@@ -130,7 +144,7 @@ const Promotions = () => {
         userId: (user as any)?.userId,
         user_id: (user as any)?.user_id,
       });
-      alert("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+      toast.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
       return;
     }
 
@@ -144,13 +158,13 @@ const Promotions = () => {
       // Validate form
       if (!formData.name.trim()) {
         console.log("❌ Validation failed: name is empty");
-        alert("Vui lòng nhập tên khuyến mãi");
+        toast.error("Vui lòng nhập tên khuyến mãi");
         setSubmitting(false);
         return;
       }
       if (!formData.code.trim()) {
         console.log("❌ Validation failed: code is empty");
-        alert("Vui lòng nhập mã khuyến mãi");
+        toast.error("Vui lòng nhập mã khuyến mãi");
         setSubmitting(false);
         return;
       }
@@ -163,7 +177,7 @@ const Promotions = () => {
           "❌ Validation failed: discountPercent invalid",
           formData.discountPercent
         );
-        alert("Vui lòng nhập phần trăm giảm giá từ 1 đến 100");
+        toast.error("Vui lòng nhập phần trăm giảm giá từ 1 đến 100");
         setSubmitting(false);
         return;
       }
@@ -172,13 +186,13 @@ const Promotions = () => {
           startDate: formData.startDate,
           endDate: formData.endDate,
         });
-        alert("Vui lòng chọn ngày bắt đầu và kết thúc");
+        toast.error("Vui lòng chọn ngày bắt đầu và kết thúc");
         setSubmitting(false);
         return;
       }
       if (new Date(formData.startDate) >= new Date(formData.endDate)) {
         console.log("❌ Validation failed: endDate must be after startDate");
-        alert("Ngày kết thúc phải sau ngày bắt đầu");
+        toast.error("Ngày kết thúc phải sau ngày bắt đầu");
         setSubmitting(false);
         return;
       }
@@ -187,7 +201,7 @@ const Promotions = () => {
           "❌ Validation failed: quantity invalid",
           formData.quantity
         );
-        alert("Vui lòng nhập số lượng lớn hơn 0");
+        toast.error("Vui lòng nhập số lượng lớn hơn 0");
         setSubmitting(false);
         return;
       }
@@ -245,7 +259,7 @@ const Promotions = () => {
 
           console.log("✅ Update response:", response.data);
           console.log("✅ Promotion updated successfully!");
-          alert("Cập nhật khuyến mãi thành công!");
+          toast.success("Cập nhật khuyến mãi thành công!");
         } else {
           // Create new promotion
           console.log("🔗 URL:", `/promotions/create/${userId}`);
@@ -274,7 +288,7 @@ const Promotions = () => {
             }
           }
 
-          alert("Tạo khuyến mãi thành công!");
+          toast.success("Tạo khuyến mãi thành công!");
         }
 
         fetchPromotions();
@@ -302,79 +316,106 @@ const Promotions = () => {
         error?.response?.data?.error ||
         error?.message ||
         `Có lỗi xảy ra khi ${isUpdate ? "cập nhật" : "tạo"} khuyến mãi!`;
-      alert(`Lỗi: ${errorMessage}`);
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleApprove = async (promotionId: number) => {
+  const handleApprove = (promotionId: number) => {
     if (!user?.id) {
-      alert("Không tìm thấy thông tin người dùng");
+      toast.error("Không tìm thấy thông tin người dùng");
       return;
     }
 
-    if (!window.confirm("Bạn có chắc chắn muốn duyệt khuyến mãi này?")) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Xác nhận duyệt khuyến mãi",
+      message: "Bạn có chắc chắn muốn duyệt khuyến mãi này?",
+      type: "info",
+      onConfirm: () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        performApprove(promotionId);
+      },
+    });
+  };
 
+  const performApprove = async (promotionId: number) => {
     try {
-      await axiosInstance.put(`/promotions/approve/${promotionId}/${user.id}`);
-      alert("Duyệt khuyến mãi thành công!");
+      await axiosInstance.put(`/promotions/approve/${promotionId}/${user?.id}`);
+      toast.success("Duyệt khuyến mãi thành công!");
       fetchPromotions();
     } catch (error: any) {
       console.error("Lỗi khi duyệt khuyến mãi:", error);
       const errorMessage =
         error?.response?.data?.message || "Có lỗi xảy ra khi duyệt khuyến mãi!";
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
-  const handleReject = async (promotionId: number) => {
+  const handleReject = (promotionId: number) => {
     if (!user?.id) {
-      alert("Không tìm thấy thông tin người dùng");
+      toast.error("Không tìm thấy thông tin người dùng");
       return;
     }
 
-    if (!window.confirm("Bạn có chắc chắn muốn từ chối khuyến mãi này?")) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Xác nhận từ chối khuyến mãi",
+      message: "Bạn có chắc chắn muốn từ chối khuyến mãi này?",
+      type: "warning",
+      onConfirm: () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        performReject(promotionId);
+      },
+    });
+  };
 
+  const performReject = async (promotionId: number) => {
     try {
-      await axiosInstance.put(`/promotions/reject/${promotionId}/${user.id}`);
-      alert("Từ chối khuyến mãi thành công!");
+      await axiosInstance.put(`/promotions/reject/${promotionId}/${user?.id}`);
+      toast.success("Từ chối khuyến mãi thành công!");
       fetchPromotions();
     } catch (error: any) {
       console.error("Lỗi khi từ chối khuyến mãi:", error);
       const errorMessage =
         error?.response?.data?.message ||
         "Có lỗi xảy ra khi từ chối khuyến mãi!";
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
-  const handleDeactivate = async (promotionId: number) => {
+  const handleDeactivate = (promotionId: number) => {
     if (!user?.id) {
-      alert("Không tìm thấy thông tin người dùng");
+      toast.error("Không tìm thấy thông tin người dùng");
       return;
     }
 
-    if (!window.confirm("Bạn có chắc chắn muốn vô hiệu hóa khuyến mãi này?")) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Xác nhận vô hiệu hóa khuyến mãi",
+      message: "Bạn có chắc chắn muốn vô hiệu hóa khuyến mãi này?",
+      type: "danger",
+      onConfirm: () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        performDeactivate(promotionId);
+      },
+    });
+  };
 
+  const performDeactivate = async (promotionId: number) => {
     try {
       await axiosInstance.put(
-        `/promotions/deactivate/${promotionId}/${user.id}`
+        `/promotions/deactivate/${promotionId}/${user?.id}`
       );
-      alert("Vô hiệu hóa khuyến mãi thành công!");
+      toast.success("Vô hiệu hóa khuyến mãi thành công!");
       fetchPromotions();
     } catch (error: any) {
       console.error("Lỗi khi vô hiệu hóa khuyến mãi:", error);
       const errorMessage =
         error?.response?.data?.message ||
         "Có lỗi xảy ra khi vô hiệu hóa khuyến mãi!";
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -431,13 +472,13 @@ const Promotions = () => {
       : "";
 
     if (!user?.id) {
-      alert("Không tìm thấy thông tin người dùng");
+      toast.error("Không tìm thấy thông tin người dùng");
       return;
     }
 
     const userId = user?.id || (user as any)?.userId || (user as any)?.user_id;
     if (!userId) {
-      alert("Không tìm thấy ID người dùng");
+      toast.error("Không tìm thấy ID người dùng");
       return;
     }
 
@@ -446,51 +487,71 @@ const Promotions = () => {
       return;
     }
 
+    // Hiển thị confirm dialog dựa trên action
+    let confirmMessage = "";
+    let confirmTitle = "";
+    let confirmType: "danger" | "warning" | "info" = "warning";
+
+    if (newStatus === "approved") {
+      confirmTitle = "Xác nhận duyệt khuyến mãi";
+      confirmMessage = "Bạn có chắc chắn muốn duyệt khuyến mãi này?";
+      confirmType = "info";
+    } else if (newStatus === "rejected") {
+      confirmTitle = "Xác nhận từ chối khuyến mãi";
+      confirmMessage = "Bạn có chắc chắn muốn từ chối khuyến mãi này?";
+      confirmType = "warning";
+    } else if (newStatus === "deactivated") {
+      confirmTitle = "Xác nhận vô hiệu hóa khuyến mãi";
+      confirmMessage = "Bạn có chắc chắn muốn vô hiệu hóa khuyến mãi này?";
+      confirmType = "danger";
+    } else if (newStatus === "pending") {
+      confirmTitle = "Xác nhận chuyển trạng thái";
+      confirmMessage = "Bạn có chắc chắn muốn chuyển khuyến mãi về trạng thái chờ duyệt?";
+      confirmType = "warning";
+    }
+
+    if (confirmMessage) {
+      setConfirmDialog({
+        isOpen: true,
+        title: confirmTitle,
+        message: confirmMessage,
+        type: confirmType,
+        onConfirm: () => {
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+          performStatusChange(promotionId, newStatus, userId);
+        },
+      });
+      return;
+    }
+  };
+
+  const performStatusChange = async (promotionId: number, newStatus: string, userId: number) => {
     try {
       if (newStatus === "approved") {
-        if (!window.confirm("Bạn có chắc chắn muốn duyệt khuyến mãi này?")) {
-          return; // Không cần refresh vì chưa thay đổi
-        }
         console.log(`🔄 Approving promotion ${promotionId}...`);
         const response = await axiosInstance.put(
           `/promotions/approve/${promotionId}/${userId}`
         );
         console.log("✅ Approve response:", response.data);
-        alert("Duyệt khuyến mãi thành công!");
+        toast.success("Duyệt khuyến mãi thành công!");
       } else if (newStatus === "rejected") {
-        if (!window.confirm("Bạn có chắc chắn muốn từ chối khuyến mãi này?")) {
-          return;
-        }
         console.log(`🔄 Rejecting promotion ${promotionId}...`);
         const response = await axiosInstance.put(
           `/promotions/reject/${promotionId}/${userId}`
         );
         console.log("✅ Reject response:", response.data);
-        alert("Từ chối khuyến mãi thành công!");
+        toast.success("Từ chối khuyến mãi thành công!");
       } else if (newStatus === "deactivated") {
-        if (
-          !window.confirm("Bạn có chắc chắn muốn vô hiệu hóa khuyến mãi này?")
-        ) {
-          return;
-        }
         console.log(`🔄 Deactivating promotion ${promotionId}...`);
         const response = await axiosInstance.put(
           `/promotions/deactivate/${promotionId}/${userId}`
         );
         console.log("✅ Deactivate response:", response.data);
-        alert("Vô hiệu hóa khuyến mãi thành công!");
+        toast.success("Vô hiệu hóa khuyến mãi thành công!");
       } else if (newStatus === "pending") {
-        // Để chuyển về pending, cần reactivate và remove approval
-        if (
-          !window.confirm(
-            "Bạn có chắc chắn muốn chuyển khuyến mãi về trạng thái chờ duyệt?"
-          )
-        ) {
-          return;
-        }
         // Note: Backend có thể cần thêm endpoint để reactivate
         // Tạm thời chỉ thông báo
-        alert(
+        toast.error(
           "Tính năng này đang được phát triển. Vui lòng sử dụng các nút thao tác."
         );
         return;
@@ -509,7 +570,7 @@ const Promotions = () => {
         error?.response?.data?.error ||
         error?.message ||
         "Có lỗi xảy ra khi thay đổi trạng thái!";
-      alert(`Lỗi: ${errorMessage}`);
+      toast.error(errorMessage);
       // Refresh để revert UI về trạng thái cũ
       await fetchPromotions();
     }
@@ -968,6 +1029,18 @@ const Promotions = () => {
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() =>
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
+        }
+      />
     </div>
   );
 };

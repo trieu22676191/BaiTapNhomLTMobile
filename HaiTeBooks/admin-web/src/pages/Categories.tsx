@@ -1,7 +1,9 @@
 import { Edit, FolderOpen, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import axiosInstance from "../config/axios";
 import { Category } from "../types";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const Categories = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -12,6 +14,18 @@ const Categories = () => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+  });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
   });
 
   useEffect(() => {
@@ -36,13 +50,13 @@ const Categories = () => {
     try {
       if (editingCategory) {
         await axiosInstance.put(`/categories/${editingCategory.id}`, formData);
-        alert("Cập nhật danh mục thành công!");
+        toast.success("Cập nhật danh mục thành công!");
       } else {
         // Gọi API POST để tạo danh mục mới
         console.log("Đang gửi request POST /categories với dữ liệu:", formData);
         const response = await axiosInstance.post("/categories", formData);
         console.log("Danh mục mới đã được tạo:", response.data);
-        alert("Thêm danh mục mới thành công!");
+        toast.success("Thêm danh mục mới thành công!");
       }
       fetchCategories();
       handleCloseModal();
@@ -85,24 +99,33 @@ const Categories = () => {
           "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng!";
       }
 
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa danh mục này?")) {
-      return;
-    }
+  const handleDelete = (id: number) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Xác nhận xóa danh mục",
+      message: "Bạn có chắc chắn muốn xóa danh mục này?",
+      type: "danger",
+      onConfirm: () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        performDelete(id);
+      },
+    });
+  };
 
+  const performDelete = async (id: number) => {
     try {
       await axiosInstance.delete(`/categories/${id}`);
       setCategories(categories.filter((cat) => cat.id !== id));
-      alert("Xóa danh mục thành công!");
+      toast.success("Xóa danh mục thành công!");
     } catch (error) {
       console.error("Lỗi khi xóa danh mục:", error);
-      alert("Có lỗi xảy ra!");
+      toast.error("Có lỗi xảy ra!");
     }
   };
 
@@ -263,6 +286,18 @@ const Categories = () => {
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() =>
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
+        }
+      />
     </div>
   );
 };

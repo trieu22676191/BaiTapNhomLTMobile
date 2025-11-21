@@ -12,6 +12,8 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import ConfirmDialog from "../components/ConfirmDialog";
 import axiosInstance from "../config/axios";
 import { User } from "../types";
 
@@ -23,6 +25,18 @@ const Users = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -77,15 +91,6 @@ const Users = () => {
     fetchUsers(true);
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-  };
-
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleString("vi-VN", {
@@ -105,6 +110,115 @@ const Users = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedUser(null);
+  };
+
+  const handleToggleUserStatus = (user: User) => {
+    const action = user.enabled ? "khóa" : "mở khóa";
+    const confirmMessage = `Bạn có chắc muốn ${action} người dùng "${
+      user.fullName || user.username
+    }"?`;
+
+    // Hiển thị confirm dialog
+    setConfirmDialog({
+      isOpen: true,
+      title: `Xác nhận ${action} người dùng`,
+      message: confirmMessage,
+      type: user.enabled ? "danger" : "warning",
+      onConfirm: () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        performToggleUserStatus(user);
+      },
+    });
+  };
+
+  const performToggleUserStatus = async (user: User) => {
+    const action = user.enabled ? "khóa" : "mở khóa";
+
+    try {
+      // Thử gọi API với chỉ field enabled trước
+      // Nếu backend yêu cầu đầy đủ thông tin, sẽ gửi toàn bộ
+      const response = await axiosInstance.put(`/admin/users/${user.id}`, {
+        enabled: !user.enabled,
+      });
+
+      if (response.data) {
+        // Cập nhật trạng thái người dùng trong danh sách
+        setUsers((prevUsers) =>
+          prevUsers.map((u) =>
+            u.id === user.id ? { ...u, enabled: !u.enabled } : u
+          )
+        );
+
+        // Nếu đang xem chi tiết người dùng này, cập nhật luôn
+        if (selectedUser && selectedUser.id === user.id) {
+          setSelectedUser({ ...selectedUser, enabled: !selectedUser.enabled });
+        }
+
+        toast.success(`Đã ${action} người dùng thành công!`);
+      }
+    } catch (error: any) {
+      console.error("Lỗi khi cập nhật trạng thái người dùng:", error);
+
+      // Nếu lỗi 400 (Bad Request), thử lại với đầy đủ thông tin
+      if (error.response?.status === 400) {
+        try {
+          const response = await axiosInstance.put(`/admin/users/${user.id}`, {
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName,
+            phone: user.phone || "",
+            address: user.address || "",
+            roleName: user.role?.name,
+            enabled: !user.enabled,
+          });
+
+          if (response.data) {
+            setUsers((prevUsers) =>
+              prevUsers.map((u) =>
+                u.id === user.id ? { ...u, enabled: !u.enabled } : u
+              )
+            );
+
+            if (selectedUser && selectedUser.id === user.id) {
+              setSelectedUser({
+                ...selectedUser,
+                enabled: !selectedUser.enabled,
+              });
+            }
+
+            toast.success(`Đã ${action} người dùng thành công!`);
+            return;
+          }
+        } catch (retryError: any) {
+          console.error("Lỗi khi thử lại với đầy đủ thông tin:", retryError);
+        }
+      }
+
+      let errorMessage = `Không thể ${action} người dùng. Vui lòng thử lại.`;
+
+      if (error.response) {
+        const status = error.response.status;
+        const responseData = error.response.data;
+
+        if (status === 401) {
+          errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!";
+        } else if (status === 403) {
+          errorMessage = "Bạn không có quyền thực hiện thao tác này!";
+        } else if (status === 400) {
+          errorMessage =
+            responseData?.message ||
+            "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.";
+        } else if (status >= 500) {
+          errorMessage =
+            responseData?.message || "Lỗi server. Vui lòng thử lại sau!";
+          console.error("Server error details:", responseData);
+        } else {
+          errorMessage = responseData?.message || errorMessage;
+        }
+      }
+
+      toast.error(errorMessage);
+    }
   };
 
   const filteredUsers = users.filter(
@@ -217,26 +331,26 @@ const Users = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   ID
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Người dùng
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Liên hệ
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Vai trò
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trạng thái
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ngày đăng ký
+                <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Chi tiết
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thao tác
+                <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Khóa/Mở khóa
                 </th>
               </tr>
             </thead>
@@ -245,7 +359,7 @@ const Users = () => {
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-6 py-8 text-center text-gray-500"
+                    className="px-4 py-6 text-center text-gray-500"
                   >
                     {searchTerm
                       ? "Không tìm thấy người dùng nào"
@@ -255,12 +369,12 @@ const Users = () => {
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {user.id}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 flex-shrink-0">
                           <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
@@ -269,7 +383,7 @@ const Users = () => {
                             </span>
                           </div>
                         </div>
-                        <div className="ml-4">
+                        <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
                             {user.fullName || user.username}
                           </div>
@@ -279,13 +393,13 @@ const Users = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <div className="text-sm text-gray-900">{user.email}</div>
                       <div className="text-xs text-gray-500">
                         {user.phone || "-"}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {user.role?.name?.toUpperCase() === "ADMIN" ||
                       user.role?.name?.toLowerCase() === "admin" ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
@@ -299,7 +413,7 @@ const Users = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {user.enabled ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           <Check size={14} className="mr-1" />
@@ -312,44 +426,35 @@ const Users = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatDate(user.createdAt)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
                       <button
                         onClick={() => handleViewUser(user)}
-                        className="text-blue-600 hover:text-blue-900 mr-3 inline-flex items-center"
+                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 hover:border-blue-300 transition-colors"
                       >
-                        <Check size={16} className="mr-1" />
+                        <Check size={16} className="mr-1.5" />
                         Xem
                       </button>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
                       <button
-                        onClick={() => {
-                          // TODO: Implement toggle user enabled status
-                          if (
-                            window.confirm(
-                              `Bạn có chắc muốn ${
-                                user.enabled ? "khóa" : "mở khóa"
-                              } người dùng này?`
-                            )
-                          ) {
-                            console.log(
-                              "Toggle user enabled:",
-                              user.id,
-                              !user.enabled
-                            );
-                          }
-                        }}
-                        className={`${
+                        onClick={() => handleToggleUserStatus(user)}
+                        className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                           user.enabled
-                            ? "text-red-600 hover:text-red-900"
-                            : "text-green-600 hover:text-green-900"
-                        } inline-flex items-center`}
+                            ? "text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300"
+                            : "text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 hover:border-green-300"
+                        }`}
                       >
-                        <Ban size={16} className="mr-1" />
-                        {user.enabled ? "Khóa" : "Mở khóa"}
+                        {user.enabled ? (
+                          <>
+                            <Ban size={16} className="mr-1.5" />
+                            Khóa
+                          </>
+                        ) : (
+                          <>
+                            <Check size={16} className="mr-1.5" />
+                            Mở khóa
+                          </>
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -509,6 +614,18 @@ const Users = () => {
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() =>
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false }))
+        }
+      />
     </div>
   );
 };

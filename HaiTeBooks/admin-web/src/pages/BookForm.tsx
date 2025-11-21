@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import axiosInstance from '../config/axios';
 import { Book, Category } from '../types';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -58,7 +59,7 @@ const BookForm = () => {
       });
     } catch (error) {
       console.error('❌ Lỗi khi tải thông tin sách:', error);
-      alert('Không thể tải thông tin sách!');
+      toast.error('Không thể tải thông tin sách!');
       navigate('/admin/books');
     } finally {
       setLoadingData(false);
@@ -92,17 +93,17 @@ const BookForm = () => {
         console.log('📝 Updating book:', id, bookData);
         await axiosInstance.put(`/books/${id}`, bookData);
         console.log('✅ Book updated successfully!');
-        alert('Cập nhật sách thành công!');
+        toast.success('Cập nhật sách thành công!');
       } else {
         console.log('➕ Creating new book:', bookData);
         await axiosInstance.post('/books', bookData);
         console.log('✅ Book created successfully!');
-        alert('Thêm sách mới thành công!');
+        toast.success('Thêm sách mới thành công!');
       }
       navigate('/admin/books');
     } catch (error: any) {
       console.error('❌ Lỗi khi lưu sách:', error);
-      alert(error.response?.data?.message || 'Có lỗi xảy ra khi lưu sách!');
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lưu sách!');
     } finally {
       setLoading(false);
     }
