@@ -365,6 +365,212 @@ const Checkout: React.FC = () => {
                 }
               }
 
+              // ✅ Nếu thanh toán VNPay: Lưu thông tin đơn hàng vào AsyncStorage và tạo payment request
+              // Chỉ tạo order thực sự khi thanh toán thành công
+              if (formData.paymentMethod === "vnpay") {
+                try {
+                  // Lưu thông tin đơn hàng vào AsyncStorage để tạo order sau khi thanh toán thành công
+                  const pendingOrderData = {
+                    userId: userId,
+                    total: totalPrice,
+                    orderItems: items.map((item) => ({
+                      bookId: item.bookId,
+                      quantity: item.qty,
+                      price: item.price,
+                    })),
+                    address: formData.address,
+                    note: formData.note || "",
+                    promotionCode: appliedPromotion?.code || null,
+                    paymentMethod: "VNPAY", // Đảm bảo lưu paymentMethod = VNPAY
+                    cartItemIds: items.map((item) => item.id), // Lưu cart item IDs để xóa sau khi thanh toán thành công
+                  };
+                  
+                  await AsyncStorage.setItem(
+                    "pending_vnpay_order_data",
+                    JSON.stringify(pendingOrderData)
+                  );
+                  
+                  console.log("💾 Đã lưu thông tin đơn hàng tạm thời:", pendingOrderData);
+                  
+                  // Tạo payment request với amount và orderInfo (không cần orderId)
+                  // Backend sẽ tạo order khi thanh toán thành công
+                  const paymentRequest = {
+                    amount: totalPrice,
+                    method: "VNPAY",
+                    orderInfo: `Thanh toan don hang - ${formData.fullName}`,
+                    // Gửi thông tin đơn hàng trong orderInfo hoặc tạo endpoint mới
+                    orderData: pendingOrderData, // Gửi thông tin đơn hàng để backend tạo khi thanh toán thành công
+                  };
+                  
+                  console.log("📤 Payment request:", JSON.stringify(paymentRequest, null, 2));
+                  
+                  // ⚠️ LƯU Ý: Backend hiện tại yêu cầu orderId để tạo payment
+                  // Có 2 cách giải quyết:
+                  // 1. Tạo order tạm thời với status DRAFT, sau đó khi thanh toán thành công mới chuyển sang PENDING
+                  // 2. Sửa backend để cho phép tạo payment không cần orderId, và tạo order khi thanh toán thành công
+                  // 
+                  // Tạm thời: Tạo order tạm thời với status PENDING, nhưng không xóa cart
+                  // Khi thanh toán thành công, cập nhật order với paymentMethod = VNPAY và xóa cart
+                  // Nếu thanh toán thất bại, xóa order tạm thời
+                  
+                  // Tạo order tạm thời để có orderId cho payment request
+                  const tempOrderData = {
+                    userId: userId,
+                    total: totalPrice,
+                    status: "PENDING",
+                    orderItems: items.map((item) => ({
+                      bookId: item.bookId,
+                      quantity: item.qty,
+                      price: item.price,
+                    })),
+                    address: formData.address,
+                    note: formData.note || "",
+                    promotionCode: appliedPromotion?.code || null,
+                    paymentMethod: "VNPAY", // Lưu paymentMethod = VNPAY ngay từ đầu
+                  };
+                  
+                  let orderResponse;
+                  try {
+                    orderResponse = await axiosInstance.post("/orders", tempOrderData);
+                  } catch (orderError: any) {
+                    // Thử format khác nếu format 1 fail
+                    const tempOrderData2 = {
+                      user: { id: userId },
+                      total: totalPrice,
+                      orderItems: items.map((item) => ({
+                        bookId: item.bookId,
+                        quantity: item.qty,
+                        price: item.price,
+                      })),
+                      address: formData.address,
+                      note: formData.note || "",
+                      promotionCode: appliedPromotion?.code || null,
+                      paymentMethod: "VNPAY",
+                    };
+                    orderResponse = await axiosInstance.post("/orders", tempOrderData2);
+                  }
+                  
+                  const tempOrder = orderResponse.data;
+                  console.log("📦 Order tạm thời đã tạo:", tempOrder.id);
+                  
+                  // ✅ XÓA CART NGAY SAU KHI TẠO ORDER THÀNH CÔNG
+                  const cartItemIds = items.map((item) => item.id);
+                  console.log("🗑️ Bắt đầu xóa cart items với IDs:", cartItemIds);
+                  
+                  try {
+                    const deleteResults = await Promise.allSettled(
+                      cartItemIds.map((id) =>
+                        axiosInstance.delete(`/cart/remove/${id}`)
+                      )
+                    );
+                    
+                    const successCount = deleteResults.filter(
+                      (result) => result.status === "fulfilled"
+                    ).length;
+                    
+                    deleteResults.forEach((result, index) => {
+                      if (result.status === "rejected") {
+                        console.error(
+                          `❌ Lỗi xóa cart item ${cartItemIds[index]}:`,
+                          result.reason?.response?.data || result.reason?.message
+                        );
+                      } else {
+                        console.log(`✅ Đã xóa cart item ${cartItemIds[index]}`);
+                      }
+                    });
+                    
+                    console.log(`✅ Đã xóa ${successCount}/${cartItemIds.length} sản phẩm khỏi giỏ hàng`);
+                    
+                    // Refresh cart ngay sau khi xóa
+                    await refreshCart();
+                  } catch (cartError) {
+                    console.error("❌ Error removing cart items:", cartError);
+                    // Vẫn tiếp tục nếu xóa cart fail
+                  }
+                  
+                  // Lưu orderId tạm thời để xóa nếu thanh toán thất bại
+                  await AsyncStorage.setItem("pending_vnpay_temp_order_id", tempOrder.id.toString());
+                  
+                  // Tạo payment request với orderId tạm thời
+                  const paymentRequestWithOrder = {
+                    orderId: tempOrder.id,
+                    amount: totalPrice,
+                    method: "VNPAY",
+                    orderInfo: `Thanh toan don hang #${tempOrder.id}`,
+                  };
+                  
+                  const paymentResponse = await axiosInstance.post("/v1/payment/create", paymentRequestWithOrder);
+
+                  const paymentUrl = paymentResponse.data?.paymentUrl;
+                  const txnRef = paymentResponse.data?.txnRef;
+                  
+                  if (paymentUrl) {
+                    console.log("✅ VNPay payment URL:", paymentUrl);
+                    console.log("🔑 Transaction Ref:", txnRef);
+                    
+                    // Lưu txnRef và orderId để xử lý callback
+                    if (txnRef) {
+                      await AsyncStorage.setItem("pending_payment_txnRef", txnRef);
+                    }
+                    await AsyncStorage.setItem("pending_payment_order", tempOrder.id.toString());
+                    
+                    // Mở URL VNPay trong browser
+                    const canOpen = await RNLinking.canOpenURL(paymentUrl);
+                    if (canOpen) {
+                      await RNLinking.openURL(paymentUrl);
+                      
+                      // Hiển thị thông báo chờ thanh toán
+                      Alert.alert(
+                        "Đang chuyển đến VNPay",
+                        "Vui lòng hoàn tất thanh toán trên trang VNPay. Sau khi thanh toán thành công, đơn hàng sẽ được tạo và bạn sẽ được chuyển về ứng dụng.",
+                        [
+                          {
+                            text: "OK",
+                            onPress: () => {
+                              // Chuyển đến trang "Đơn hàng của tôi" với trạng thái "chờ xác nhận"
+                              router.push({
+                                pathname: "/mobile/page/accounts/MyOrder",
+                                params: { status: "PENDING" },
+                              });
+                            },
+                          },
+                        ]
+                      );
+                      setSubmitting(false);
+                      return; // Dừng lại, không xóa cart vì chưa thanh toán xong
+                    } else {
+                      throw new Error("Không thể mở URL thanh toán");
+                    }
+                  } else {
+                    throw new Error("Không nhận được URL thanh toán từ server");
+                  }
+                } catch (paymentError: any) {
+                  console.error("❌ VNPay payment error:", paymentError);
+                  
+                  // Xóa order tạm thời nếu có
+                  try {
+                    const tempOrderId = await AsyncStorage.getItem("pending_vnpay_temp_order_id");
+                    if (tempOrderId) {
+                      await axiosInstance.delete(`/orders/${tempOrderId}`);
+                      await AsyncStorage.removeItem("pending_vnpay_temp_order_id");
+                    }
+                  } catch (deleteError) {
+                    console.error("Error deleting temp order:", deleteError);
+                  }
+                  
+                  const errorMessage = 
+                    paymentError?.response?.data?.error ||
+                    paymentError?.response?.data?.message || 
+                    paymentError?.message || 
+                    "Không thể tạo giao dịch thanh toán. Vui lòng thử lại hoặc chọn phương thức thanh toán khác.";
+                  
+                  Alert.alert("Lỗi thanh toán", errorMessage);
+                  setSubmitting(false);
+                  return;
+                }
+              }
+
+              // ✅ Nếu thanh toán CASH: Tạo order ngay và xóa cart
               // Tạo đơn hàng - Backend sẽ nhận OrderRequest DTO
               // Format theo OrderRequest DTO structure
               const orderData = {
@@ -379,7 +585,7 @@ const Checkout: React.FC = () => {
                 address: formData.address, // OrderRequest có address (String)
                 note: formData.note || "", // OrderRequest có note (String)
                 promotionCode: appliedPromotion?.code || null, // Backend nhận promotionCode (String), không phải ID
-                paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "CASH", // Backend enum: CASH | VNPAY
+                paymentMethod: "CASH", // Thanh toán CASH
               };
 
               console.log(
@@ -434,7 +640,7 @@ const Checkout: React.FC = () => {
                     price: item.price,
                   })),
                   promotionCode: appliedPromotion?.code || null,
-                  paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "CASH",
+                  paymentMethod: "CASH",
                 };
                 console.log(
                   "📦 Trying Format 2:",
@@ -460,7 +666,7 @@ const Checkout: React.FC = () => {
                       price: item.price,
                     })),
                     promotionCode: appliedPromotion?.code || null,
-                    paymentMethod: formData.paymentMethod === "vnpay" ? "VNPAY" : "COD",
+                    paymentMethod: "CASH",
                   };
                   console.log(
                     "📦 Trying Format 3:",
@@ -476,78 +682,8 @@ const Checkout: React.FC = () => {
 
               console.log("✅ Order created:", JSON.stringify(order, null, 2));
 
-              // Nếu thanh toán VNPay, tạo payment và redirect
-              if (formData.paymentMethod === "vnpay") {
-                try {
-                  console.log("💳 Creating VNPay payment for order:", order.id);
-                  
-                  // Gọi API tạo payment VNPay
-                  // Backend sẽ tự động set returnUrl từ config, không cần gửi từ frontend
-                  const paymentRequest = {
-                    orderId: order.id,
-                    amount: totalPrice,
-                    method: "VNPAY", // Backend enum: CASH | VNPAY
-                    orderInfo: `Thanh toan don hang #${order.id}`, // Thông tin đơn hàng
-                  };
-                  
-                  console.log("📤 Payment request:", JSON.stringify(paymentRequest, null, 2));
-                  
-                  const paymentResponse = await axiosInstance.post("/v1/payment/create", paymentRequest);
-
-                  const paymentUrl = paymentResponse.data?.paymentUrl;
-                  const txnRef = paymentResponse.data?.txnRef;
-                  
-                  if (paymentUrl) {
-                    console.log("✅ VNPay payment URL:", paymentUrl);
-                    console.log("🔑 Transaction Ref:", txnRef);
-                    
-                    // Lưu txnRef và orderId để xử lý callback
-                    if (txnRef) {
-                      await AsyncStorage.setItem("pending_payment_txnRef", txnRef);
-                    }
-                    await AsyncStorage.setItem("pending_payment_order", order.id.toString());
-                    
-                    // Mở URL VNPay trong browser
-                    const canOpen = await RNLinking.canOpenURL(paymentUrl);
-                    if (canOpen) {
-                      await RNLinking.openURL(paymentUrl);
-                      
-                      // Hiển thị thông báo chờ thanh toán
-                      Alert.alert(
-                        "Đang chuyển đến VNPay",
-                        "Vui lòng hoàn tất thanh toán trên trang VNPay. Sau khi thanh toán thành công, bạn sẽ được chuyển về ứng dụng.",
-                        [
-                          {
-                            text: "OK",
-                            onPress: () => {
-                              // Không xóa cart vì chưa thanh toán xong
-                              // User sẽ quay lại sau khi thanh toán
-                              router.replace("/account");
-                            },
-                          },
-                        ]
-                      );
-                      setSubmitting(false);
-                      return; // Dừng lại, không xóa cart vì chưa thanh toán xong
-                    } else {
-                      throw new Error("Không thể mở URL thanh toán");
-                    }
-                  } else {
-                    throw new Error("Không nhận được URL thanh toán từ server");
-                  }
-                } catch (paymentError: any) {
-                  console.error("❌ VNPay payment error:", paymentError);
-                  const errorMessage = 
-                    paymentError?.response?.data?.error ||
-                    paymentError?.response?.data?.message || 
-                    paymentError?.message || 
-                    "Không thể tạo giao dịch thanh toán. Vui lòng thử lại hoặc chọn phương thức thanh toán khác.";
-                  
-                  Alert.alert("Lỗi thanh toán", errorMessage);
-                  setSubmitting(false);
-                  return;
-                }
-              }
+              // ✅ Đã xử lý VNPay ở trên, phần này chỉ dành cho CASH
+              // Không cần xử lý VNPay ở đây nữa vì đã xử lý ở trên
 
               // Xóa các sản phẩm đã thanh toán khỏi giỏ hàng
               try {

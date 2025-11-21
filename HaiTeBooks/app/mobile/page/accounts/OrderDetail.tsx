@@ -31,6 +31,9 @@ interface Order {
   orderDate: string;
   address?: string;
   note?: string;
+  paymentMethod?: string;
+  userName?: string;
+  userPhone?: string;
   orderItems?: OrderItem[];
   appliedPromotion?: {
     id: number;
@@ -86,15 +89,49 @@ const OrderDetail: React.FC = () => {
         orderData.appliedPromotion
       );
 
+      // Lấy số điện thoại từ order data
+      const userId = orderData.userId || orderData.user?.id;
+      let userPhone = 
+        orderData.userPhone || 
+        orderData.user?.phone || 
+        orderData.user?.phoneNumber || 
+        orderData.user?.sdt;
+
+      // Chỉ fetch từ API user nếu user đang xem đơn hàng của chính mình
+      if (userId && !userPhone) {
+        try {
+          // Lấy current user ID từ /users/me
+          const currentUserResponse = await axiosInstance.get("/users/me");
+          const currentUserId = currentUserResponse.data?.id;
+          
+          // Chỉ fetch nếu userId === currentUserId (user đang xem đơn hàng của chính mình)
+          if (currentUserId && userId === currentUserId) {
+            userPhone = currentUserResponse.data?.phone || currentUserResponse.data?.phoneNumber || currentUserResponse.data?.sdt || null;
+            console.log("✅ Fetched user phone from /users/me:", userPhone);
+          } else {
+            console.log("⚠️ Cannot fetch phone - user is viewing another user's order");
+          }
+        } catch (userError: any) {
+          // Ignore 403 errors (forbidden) - user không có quyền xem user khác
+          if (userError?.response?.status !== 403) {
+            console.error("❌ Error fetching user phone:", userError);
+          } else {
+            console.log("⚠️ Forbidden - cannot fetch phone for other user's order");
+          }
+        }
+      }
+
       // Normalize data
       const normalizedOrder: Order = {
         id: orderData.id,
-        userId: orderData.userId || orderData.user?.id,
+        userId: userId,
         total: orderData.total || orderData.totalAmount,
         status: orderData.status || orderData.statusOrder,
         orderDate: orderData.orderDate || orderData.createdAt,
         address: orderData.address || orderData.shippingAddress,
         note: orderData.note || orderData.customerNote,
+        paymentMethod: orderData.paymentMethod || "CASH",
+        userPhone: userPhone,
         orderItems: orderData.orderItems || orderData.items || [],
         appliedPromotion: orderData.appliedPromotion
           ? {
@@ -495,6 +532,16 @@ const OrderDetail: React.FC = () => {
               {formatDate(order.orderDate)}
             </Text>
           </View>
+          {order.userPhone && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                Số điện thoại:
+              </Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>
+                {order.userPhone}
+              </Text>
+            </View>
+          )}
           {order.address && (
             <View style={styles.infoRow}>
               <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
@@ -515,6 +562,47 @@ const OrderDetail: React.FC = () => {
               </Text>
             </View>
           )}
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, styles.paymentMethodLabel, { color: colors.textSecondary }]}>
+              Phương thức thanh toán:
+            </Text>
+            <View style={styles.paymentMethodContainer}>
+              <Ionicons
+                name={
+                  order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                    ? "card"
+                    : "cash"
+                }
+                size={18}
+                color={
+                  order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                    ? "#10B981"
+                    : "#6B7280"
+                }
+              />
+              <Text
+                style={[
+                  styles.paymentMethodText,
+                  {
+                    color:
+                      order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                        ? "#10B981"
+                        : colors.text,
+                    fontWeight:
+                      order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                        ? "600"
+                        : "500",
+                  },
+                ]}
+              >
+                {order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay"
+                  ? "VNPay"
+                  : order.paymentMethod === "CASH" || !order.paymentMethod
+                  ? "Tiền mặt"
+                  : order.paymentMethod}
+              </Text>
+            </View>
+          </View>
           {order.appliedPromotion && (
             <View style={styles.promotionSection}>
               <View style={styles.promotionHeader}>
@@ -796,11 +884,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
+  paymentMethodLabel: {
+    flex: 1.5,
+    flexShrink: 0,
+  },
   infoValue: {
     fontSize: 14,
     fontWeight: "500",
     flex: 2,
     textAlign: "right",
+  },
+  paymentMethodContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1.5,
+    justifyContent: "flex-end",
+  },
+  paymentMethodText: {
+    fontSize: 14,
   },
   itemsContainer: {
     marginTop: 8,

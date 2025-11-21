@@ -103,20 +103,29 @@ const Account: React.FC = () => {
 
       setAuthToken(token);
 
-      // Kiểm tra payment status
-      const paymentResponse = await axiosInstance.get(`/payments/order/${pendingOrderId}`);
-      const payments = paymentResponse.data || [];
-      const successPayment = payments.find((p: any) => p.status === "SUCCESS");
+      // ✅ BỎ API /payments/order/ - Kiểm tra order status trực tiếp
+      try {
+        const orderResponse = await axiosInstance.get(`/orders/${pendingOrderId}`);
+        const order = orderResponse.data;
 
-      if (successPayment) {
-        // Payment thành công, xóa pending và refresh cart
-        await AsyncStorage.multiRemove(["pending_payment_order", "pending_payment_txnRef"]);
-        await refreshCart();
-        Alert.alert(
-          "Thanh toán thành công!",
-          `Đơn hàng #${pendingOrderId} đã được thanh toán thành công.`,
-          [{ text: "OK" }]
-        );
+        // Kiểm tra nếu order có paymentMethod = VNPAY và status = PENDING (đã thanh toán thành công)
+        const isVNPayOrder = 
+          (order.paymentMethod === "VNPAY" || order.paymentMethod === "vnpay") &&
+          (order.status === "PENDING" || order.status === "pending");
+
+        if (isVNPayOrder) {
+          // Payment thành công, xóa pending và refresh cart
+          await AsyncStorage.multiRemove(["pending_payment_order", "pending_payment_txnRef"]);
+          await refreshCart();
+          Alert.alert(
+            "Thanh toán thành công!",
+            `Đơn hàng #${pendingOrderId} đã được thanh toán thành công.`,
+            [{ text: "OK" }]
+          );
+        }
+      } catch (orderError) {
+        // Ignore errors khi check order
+        console.log("Check pending payment (order):", orderError);
       }
     } catch (error) {
       // Ignore errors khi check payment

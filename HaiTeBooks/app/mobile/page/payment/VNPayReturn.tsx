@@ -69,52 +69,85 @@ const VNPayReturn: React.FC = () => {
 
       setAuthToken(token);
 
-      // Kiểm tra payment status
-      const paymentResponse = await axiosInstance.get(
-        `/payments/order/${orderId}`
-      );
-      const payments = paymentResponse.data || [];
-      const successPayment = payments.find((p: any) => p.status === "SUCCESS");
+      // ✅ BỎ API /payments/order/ - Kiểm tra order status trực tiếp
+      try {
+        const orderResponse = await axiosInstance.get(`/orders/${orderId}`);
+        const order = orderResponse.data;
 
-      if (successPayment) {
-        setStatus("success");
-        await AsyncStorage.multiRemove([
-          "pending_payment_order",
-          "pending_payment_txnRef",
-        ]);
-        await refreshCart();
+        // Kiểm tra nếu order có paymentMethod = VNPAY và status = PENDING (đã thanh toán thành công)
+        // Backend sẽ cập nhật payment status, nhưng order vẫn là PENDING
+        const isVNPayOrder =
+          (order.paymentMethod === "VNPAY" ||
+            order.paymentMethod === "vnpay") &&
+          (order.status === "PENDING" || order.status === "pending");
 
-        // Bắt đầu countdown
-        setCountdown(3);
-        if (countdownIntervalRef.current) {
-          clearInterval(countdownIntervalRef.current);
-        }
-        countdownIntervalRef.current = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
+        if (isVNPayOrder) {
+          setStatus("success");
+          setLoading(false);
+
+          // ✅ Cart đã được xóa trong Checkout.tsx rồi, chỉ cần refresh
+          await refreshCart();
+
+          // Xóa các thông tin tạm thời
+          await AsyncStorage.multiRemove([
+            "pending_payment_order",
+            "pending_payment_txnRef",
+            "pending_vnpay_order_data",
+            "pending_vnpay_temp_order_id",
+            "pending_vnpay_cart_item_ids",
+          ]);
+
+          // ✅ Bắt đầu countdown để tự động redirect
+          console.log(
+            "⏱️ Bắt đầu countdown 3 giây (checkPaymentStatusFromStorage)..."
+          );
+          setCountdown(3);
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+          }
+          countdownIntervalRef.current = setInterval(() => {
+            setCountdown((prev) => {
+              const newCount = prev - 1;
+              console.log(`⏱️ Countdown: ${newCount} giây`);
+
+              if (newCount <= 0) {
+                if (countdownIntervalRef.current) {
+                  clearInterval(countdownIntervalRef.current);
+                  countdownIntervalRef.current = null;
+                }
+                console.log("✅ Countdown kết thúc, tự động redirect...");
+                return 0;
               }
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+              return newCount;
+            });
+          }, 1000);
 
-        Alert.alert(
-          "Thanh toán thành công!",
-          `Đơn hàng #${orderId} đã được thanh toán thành công.`,
-          [
-            {
-              text: "Xem đơn hàng",
-              onPress: () =>
-                router.push({
-                  pathname: "/mobile/page/accounts/MyOrder",
-                  params: { status: "PENDING" },
-                }),
-            },
-          ]
-        );
+          Alert.alert(
+            "Thanh toán thành công!",
+            `Đơn hàng #${orderId} đã được thanh toán thành công. Tự động chuyển đến trang đơn hàng sau 3 giây...`,
+            [
+              {
+                text: "Xem đơn hàng ngay",
+                onPress: () => {
+                  // Clear countdown nếu user click
+                  if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                    countdownIntervalRef.current = null;
+                  }
+                  // Chuyển ngay đến trang "Đơn hàng của tôi" với trạng thái "chờ xác nhận"
+                  router.push({
+                    pathname: "/mobile/page/accounts/MyOrder",
+                    params: { status: "PENDING" },
+                  });
+                },
+              },
+            ],
+            { cancelable: true }
+          );
+        }
+      } catch (orderError: any) {
+        console.error("❌ Error checking order status:", orderError);
+        // Nếu không kiểm tra được order, không làm gì
       }
     } catch (error) {
       console.log("Check payment from storage:", error);
@@ -163,58 +196,78 @@ const VNPayReturn: React.FC = () => {
           return;
         }
 
-        // Nếu có orderId, kiểm tra payment status từ order
+        // ✅ BỎ API /payments/order/ - Kiểm tra order status trực tiếp
         if (orderId) {
           try {
-            const paymentResponse = await axiosInstance.get(
-              `/payments/order/${orderId}`
-            );
-            const payments = paymentResponse.data || [];
-            const payment = payments.find((p: any) => p.status === "SUCCESS");
+            const orderResponse = await axiosInstance.get(`/orders/${orderId}`);
+            const order = orderResponse.data;
 
-            if (payment) {
+            // Kiểm tra nếu order có paymentMethod = VNPAY và status = PENDING
+            const isVNPayOrder =
+              (order.paymentMethod === "VNPAY" ||
+                order.paymentMethod === "vnpay") &&
+              (order.status === "PENDING" || order.status === "pending");
+
+            if (isVNPayOrder) {
               setStatus("success");
+              setLoading(false);
+
+              // ✅ Cart đã được xóa trong Checkout.tsx rồi, chỉ cần refresh
+              await refreshCart();
+
+              // Xóa các thông tin tạm thời
               await AsyncStorage.multiRemove([
                 "pending_payment_order",
                 "pending_payment_txnRef",
+                "pending_vnpay_order_data",
+                "pending_vnpay_temp_order_id",
+                "pending_vnpay_cart_item_ids",
               ]);
-              await refreshCart();
 
-              // Bắt đầu countdown
+              // ✅ Bắt đầu countdown để tự động redirect
+              console.log("⏱️ Bắt đầu countdown 3 giây (no txnRef)...");
               setCountdown(3);
               if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
               }
               countdownIntervalRef.current = setInterval(() => {
                 setCountdown((prev) => {
-                  if (prev <= 1) {
+                  const newCount = prev - 1;
+                  console.log(`⏱️ Countdown: ${newCount} giây`);
+
+                  if (newCount <= 0) {
                     if (countdownIntervalRef.current) {
                       clearInterval(countdownIntervalRef.current);
+                      countdownIntervalRef.current = null;
                     }
+                    console.log("✅ Countdown kết thúc, tự động redirect...");
                     return 0;
                   }
-                  return prev - 1;
+                  return newCount;
                 });
               }, 1000);
 
               Alert.alert(
                 "Thanh toán thành công!",
-                "Đơn hàng của bạn đã được thanh toán thành công.",
+                `Đơn hàng #${orderId} đã được thanh toán thành công. Tự động chuyển đến trang đơn hàng sau 3 giây...`,
                 [
                   {
-                    text: "Xem đơn hàng",
-                    onPress: () =>
-                      router.push({
-                        pathname: "/mobile/page/accounts/MyOrder",
-                        params: { status: "PENDING" },
-                      }),
+                    text: "Xem đơn hàng ngay",
+                    onPress: () => {
+                      if (countdownIntervalRef.current) {
+                        clearInterval(countdownIntervalRef.current);
+                        countdownIntervalRef.current = null;
+                      }
+                      setCountdown(0); // Trigger redirect ngay
+                    },
                   },
-                ]
+                ],
+                { cancelable: true }
               );
               return;
             }
           } catch (e) {
-            console.error("Error checking payment:", e);
+            console.error("Error checking order:", e);
           }
         }
       }
@@ -227,109 +280,238 @@ const VNPayReturn: React.FC = () => {
 
       if (isSuccess && txnRef) {
         // Backend đã xử lý IPN và cập nhật payment status
-        // Kiểm tra lại payment status từ API
-        try {
-          // Tìm payment bằng txnRef thông qua order
-          const orderId = await AsyncStorage.getItem("pending_payment_order");
-          if (orderId) {
-            const paymentResponse = await axiosInstance.get(
-              `/payments/order/${orderId}`
-            );
-            const payments = paymentResponse.data || [];
-            const payment = payments.find(
-              (p: any) =>
-                p.vnpTxnRef === txnRef || p.vnpTxnRef === params.vnp_TxnRef
-            );
+        // ✅ BỎ API /payments/order/ - Kiểm tra order status trực tiếp
+        const orderId = await AsyncStorage.getItem("pending_payment_order");
+        if (orderId) {
+          try {
+            // Kiểm tra order status
+            const orderResponse = await axiosInstance.get(`/orders/${orderId}`);
+            const order = orderResponse.data;
 
-            if (payment && payment.status === "SUCCESS") {
+            // Kiểm tra nếu order có paymentMethod = VNPAY
+            const isVNPayOrder =
+              (order.paymentMethod === "VNPAY" ||
+                order.paymentMethod === "vnpay") &&
+              (order.status === "PENDING" || order.status === "pending");
+
+            if (isVNPayOrder) {
               setStatus("success");
+              setLoading(false);
+
+              // ✅ Cart đã được xóa trong Checkout.tsx rồi, chỉ cần refresh
+              await refreshCart();
+
+              console.log("📋 Order sau thanh toán:", {
+                id: order.id,
+                status: order.status,
+                paymentMethod: order.paymentMethod,
+              });
+
+              // Xóa các thông tin tạm thời
               await AsyncStorage.multiRemove([
                 "pending_payment_order",
                 "pending_payment_txnRef",
+                "pending_vnpay_order_data",
+                "pending_vnpay_temp_order_id",
+                "pending_vnpay_cart_item_ids",
               ]);
-              await refreshCart();
 
-              // Bắt đầu countdown
+              // ✅ Bắt đầu countdown để tự động redirect
+              console.log(
+                "⏱️ Bắt đầu countdown 3 giây (handleVNPayCallback)..."
+              );
               setCountdown(3);
               if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
               }
               countdownIntervalRef.current = setInterval(() => {
                 setCountdown((prev) => {
-                  if (prev <= 1) {
+                  const newCount = prev - 1;
+                  console.log(`⏱️ Countdown: ${newCount} giây`);
+
+                  if (newCount <= 0) {
                     if (countdownIntervalRef.current) {
                       clearInterval(countdownIntervalRef.current);
+                      countdownIntervalRef.current = null;
                     }
+                    console.log("✅ Countdown kết thúc, tự động redirect...");
                     return 0;
                   }
-                  return prev - 1;
+                  return newCount;
                 });
               }, 1000);
 
               Alert.alert(
                 "Thanh toán thành công!",
-                `Đơn hàng #${orderId} đã được thanh toán thành công. Cảm ơn bạn đã mua sắm!`,
+                `Đơn hàng #${orderId} đã được thanh toán thành công. Tự động chuyển đến trang đơn hàng sau 3 giây...`,
                 [
                   {
-                    text: "Xem đơn hàng",
-                    onPress: () =>
+                    text: "Xem đơn hàng ngay",
+                    onPress: () => {
+                      // Clear countdown nếu user click
+                      if (countdownIntervalRef.current) {
+                        clearInterval(countdownIntervalRef.current);
+                        countdownIntervalRef.current = null;
+                      }
+                      // Chuyển ngay đến trang "Đơn hàng của tôi" với trạng thái "chờ xác nhận"
                       router.push({
                         pathname: "/mobile/page/accounts/MyOrder",
                         params: { status: "PENDING" },
-                      }),
+                      });
+                    },
                   },
-                ]
+                ],
+                { cancelable: true }
               );
               return;
             }
+          } catch (orderError: any) {
+            console.error("❌ Error checking order status:", orderError);
+            // Nếu không kiểm tra được order, vẫn coi là thành công nếu VNPay trả về success
+            setStatus("success");
+            setLoading(false);
+
+            // Refresh cart
+            await refreshCart();
+
+            // Xóa các thông tin tạm thời
+            await AsyncStorage.multiRemove([
+              "pending_payment_order",
+              "pending_payment_txnRef",
+              "pending_vnpay_order_data",
+              "pending_vnpay_temp_order_id",
+              "pending_vnpay_cart_item_ids",
+            ]);
+
+            // Bắt đầu countdown
+            setCountdown(3);
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current);
+            }
+            countdownIntervalRef.current = setInterval(() => {
+              setCountdown((prev) => {
+                const newCount = prev - 1;
+                if (newCount <= 0) {
+                  if (countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                    countdownIntervalRef.current = null;
+                  }
+                  return 0;
+                }
+                return newCount;
+              });
+            }, 1000);
+
+            Alert.alert(
+              "Thanh toán thành công!",
+              "Đơn hàng đã được thanh toán thành công. Tự động chuyển đến trang đơn hàng sau 3 giây...",
+              [
+                {
+                  text: "Xem đơn hàng ngay",
+                  onPress: () => {
+                    if (countdownIntervalRef.current) {
+                      clearInterval(countdownIntervalRef.current);
+                      countdownIntervalRef.current = null;
+                    }
+                    // Chuyển ngay đến trang "Đơn hàng của tôi" với trạng thái "chờ xác nhận"
+                    router.push({
+                      pathname: "/mobile/page/accounts/MyOrder",
+                      params: { status: "PENDING" },
+                    });
+                  },
+                },
+              ],
+              { cancelable: true }
+            );
+            return;
           }
-        } catch (e) {
-          console.error("Error verifying payment:", e);
         }
 
-        // Nếu không verify được nhưng response code là 00, vẫn coi là thành công
+        // Nếu không có orderId hoặc không verify được, nhưng response code là 00, vẫn coi là thành công
         setStatus("success");
+        setLoading(false);
+
+        // ✅ Cart đã được xóa trong Checkout.tsx rồi, chỉ cần refresh
+        await refreshCart();
+
+        // Xóa các thông tin tạm thời
         await AsyncStorage.multiRemove([
           "pending_payment_order",
           "pending_payment_txnRef",
+          "pending_vnpay_order_data",
+          "pending_vnpay_temp_order_id",
+          "pending_vnpay_cart_item_ids",
         ]);
-        await refreshCart();
 
-        // Bắt đầu countdown
+        // ✅ Bắt đầu countdown để tự động redirect
+        console.log("⏱️ Bắt đầu countdown 3 giây (fallback)...");
         setCountdown(3);
         if (countdownIntervalRef.current) {
           clearInterval(countdownIntervalRef.current);
         }
         countdownIntervalRef.current = setInterval(() => {
           setCountdown((prev) => {
-            if (prev <= 1) {
+            const newCount = prev - 1;
+            console.log(`⏱️ Countdown: ${newCount} giây`);
+
+            if (newCount <= 0) {
               if (countdownIntervalRef.current) {
                 clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
               }
+              console.log("✅ Countdown kết thúc, tự động redirect...");
               return 0;
             }
-            return prev - 1;
+            return newCount;
           });
         }, 1000);
 
         Alert.alert(
           "Thanh toán thành công!",
-          "Đơn hàng của bạn đã được thanh toán thành công.",
+          "Đơn hàng của bạn đã được thanh toán thành công. Tự động chuyển đến trang đơn hàng sau 3 giây...",
           [
             {
-              text: "Xem đơn hàng",
-              onPress: () =>
+              text: "Xem đơn hàng ngay",
+              onPress: () => {
+                // Clear countdown nếu user click
+                if (countdownIntervalRef.current) {
+                  clearInterval(countdownIntervalRef.current);
+                  countdownIntervalRef.current = null;
+                }
+                // Chuyển ngay đến trang "Đơn hàng của tôi" với trạng thái "chờ xác nhận"
                 router.push({
                   pathname: "/mobile/page/accounts/MyOrder",
                   params: { status: "PENDING" },
-                }),
+                });
+              },
             },
-          ]
+          ],
+          { cancelable: true }
         );
       } else {
         // Thanh toán thất bại
         setStatus("failed");
-        await AsyncStorage.removeItem("pending_payment_txnRef");
+
+        // ✅ Xóa order tạm thời nếu thanh toán thất bại
+        try {
+          const tempOrderId = await AsyncStorage.getItem(
+            "pending_vnpay_temp_order_id"
+          );
+          if (tempOrderId) {
+            await axiosInstance.delete(`/orders/${tempOrderId}`);
+            console.log(
+              `🗑️ Đã xóa order tạm thời #${tempOrderId} do thanh toán thất bại`
+            );
+          }
+        } catch (deleteError) {
+          console.error("Error deleting temp order:", deleteError);
+        }
+
+        await AsyncStorage.multiRemove([
+          "pending_payment_txnRef",
+          "pending_vnpay_order_data",
+          "pending_vnpay_temp_order_id",
+        ]);
 
         Alert.alert(
           "Thanh toán thất bại",

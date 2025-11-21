@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Stack } from "expo-router";
+import * as Linking from "expo-linking";
+import { Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,6 +11,61 @@ import { CartProvider } from "../app/mobile/context/CartContext";
 import { ThemeProvider } from "../app/mobile/context/ThemeContext";
 
 export default function RootLayout() {
+  const router = useRouter();
+
+  // ✅ Handle deep linking khi app được mở từ URL (ví dụ: từ VNPay redirect)
+  useEffect(() => {
+    // Lắng nghe deep link khi app đang chạy
+    const subscription = Linking.addEventListener("url", (event) => {
+      const { url } = event;
+      console.log("🔗 Deep link received:", url);
+
+      // Kiểm tra nếu là VNPay return URL
+      if (url.includes("/payment/VNPayReturn") || url.includes("vnp_TxnRef")) {
+        // Parse URL để lấy params
+        const parsed = Linking.parse(url);
+        console.log("📋 Parsed deep link:", parsed);
+
+        // Navigate đến VNPayReturn với params
+        if (
+          parsed.path === "mobile/page/payment/VNPayReturn" ||
+          url.includes("VNPayReturn")
+        ) {
+          router.push({
+            pathname: "/mobile/page/payment/VNPayReturn",
+            params: parsed.queryParams || {},
+          });
+        }
+      }
+    });
+
+    // Kiểm tra initial URL khi app mở từ deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log("🔗 Initial deep link:", url);
+        if (
+          url.includes("/payment/VNPayReturn") ||
+          url.includes("vnp_TxnRef")
+        ) {
+          const parsed = Linking.parse(url);
+          if (
+            parsed.path === "mobile/page/payment/VNPayReturn" ||
+            url.includes("VNPayReturn")
+          ) {
+            router.push({
+              pathname: "/mobile/page/payment/VNPayReturn",
+              params: parsed.queryParams || {},
+            });
+          }
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
+
   // Restore và verify token khi app khởi động
   useEffect(() => {
     const restoreAndVerifyToken = async () => {
