@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import axiosInstance from '../config/axios';
-import { Book, Category } from '../types';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Upload, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { useNavigate, useParams } from "react-router-dom";
+import axiosInstance from "../config/axios";
+import { Book, Category } from "../types";
 
 const BookForm = () => {
   const { id } = useParams();
@@ -13,15 +13,17 @@ const BookForm = () => {
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(isEdit); // ⭐ Loading khi fetch book data
   const [categories, setCategories] = useState<Category[]>([]);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
-    title: '',
-    author: '',
-    price: '',
-    stock: '',
-    description: '',
-    imageUrl: '',
-    barcode: '',
-    categoryId: '',
+    title: "",
+    author: "",
+    price: "",
+    stock: "",
+    description: "",
+    imageUrl: "",
+    barcode: "",
+    categoryId: "",
   });
 
   useEffect(() => {
@@ -33,44 +35,121 @@ const BookForm = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await axiosInstance.get('/categories');
+      const response = await axiosInstance.get("/categories");
       setCategories(response.data);
     } catch (error) {
-      console.error('Lỗi khi tải danh mục:', error);
+      console.error("Lỗi khi tải danh mục:", error);
     }
   };
 
   const fetchBook = async () => {
     try {
-      console.log('🔍 Fetching book with ID:', id);
+      console.log("🔍 Fetching book with ID:", id);
       const response = await axiosInstance.get(`/books/${id}`);
       const book: Book = response.data;
-      console.log('📖 Book data loaded:', book);
-      
+      console.log("📖 Book data loaded:", book);
+
       setFormData({
         title: book.title,
-        author: book.author || '',
+        author: book.author || "",
         price: book.price.toString(),
         stock: book.stock.toString(),
-        description: book.description || '',
-        imageUrl: book.imageUrl || '',
-        barcode: book.barcode || '',
-        categoryId: book.categoryId?.toString() || '',
+        description: book.description || "",
+        imageUrl: book.imageUrl || "",
+        barcode: book.barcode || "",
+        categoryId: book.categoryId?.toString() || "",
       });
+
+      // Set preview nếu có ảnh
+      if (book.imageUrl) {
+        setImagePreview(book.imageUrl);
+      }
     } catch (error) {
-      console.error('❌ Lỗi khi tải thông tin sách:', error);
-      toast.error('Không thể tải thông tin sách!');
-      navigate('/admin/books');
+      console.error("❌ Lỗi khi tải thông tin sách:", error);
+      toast.error("Không thể tải thông tin sách!");
+      navigate("/admin/books");
     } finally {
       setLoadingData(false);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+
+    // Nếu thay đổi imageUrl, cập nhật preview
+    if (e.target.name === "imageUrl") {
+      setImagePreview(e.target.value || null);
+    }
+  };
+
+  // Handler upload ảnh từ máy
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Vui lòng chọn file ảnh (jpg, png, gif, webp)");
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File không được vượt quá 5MB");
+      return;
+    }
+
+    // Preview ảnh
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload lên Cloudinary
+    setUploading(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("folder", "books");
+
+      const response = await axiosInstance.post(
+        "/upload/image",
+        uploadFormData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+
+      if (response.data.success) {
+        setFormData((prev) => ({ ...prev, imageUrl: response.data.imageUrl }));
+        toast.success("Upload ảnh thành công!");
+      } else {
+        toast.error(response.data.message || "Upload ảnh thất bại");
+        setImagePreview(null);
+      }
+    } catch (error: any) {
+      console.error("Lỗi upload ảnh:", error);
+      toast.error(error.response?.data?.message || "Lỗi khi upload ảnh");
+      setImagePreview(null);
+    } finally {
+      setUploading(false);
+      // Reset input để có thể chọn lại file cùng tên
+      e.target.value = "";
+    }
+  };
+
+  // Xóa ảnh preview
+  const handleRemoveImage = () => {
+    setImagePreview(null);
+    setFormData({ ...formData, imageUrl: "" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,24 +165,28 @@ const BookForm = () => {
         description: formData.description,
         imageUrl: formData.imageUrl,
         barcode: formData.barcode,
-        categoryId: formData.categoryId ? parseInt(formData.categoryId) : undefined,
+        categoryId: formData.categoryId
+          ? parseInt(formData.categoryId)
+          : undefined,
       };
 
       if (isEdit) {
-        console.log('📝 Updating book:', id, bookData);
+        console.log("📝 Updating book:", id, bookData);
         await axiosInstance.put(`/books/${id}`, bookData);
-        console.log('✅ Book updated successfully!');
-        toast.success('Cập nhật sách thành công!');
+        console.log("✅ Book updated successfully!");
+        toast.success("Cập nhật sách thành công!");
       } else {
-        console.log('➕ Creating new book:', bookData);
-        await axiosInstance.post('/books', bookData);
-        console.log('✅ Book created successfully!');
-        toast.success('Thêm sách mới thành công!');
+        console.log("➕ Creating new book:", bookData);
+        await axiosInstance.post("/books", bookData);
+        console.log("✅ Book created successfully!");
+        toast.success("Thêm sách mới thành công!");
       }
-      navigate('/admin/books');
+      navigate("/admin/books");
     } catch (error: any) {
-      console.error('❌ Lỗi khi lưu sách:', error);
-      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lưu sách!');
+      console.error("❌ Lỗi khi lưu sách:", error);
+      toast.error(
+        error.response?.data?.message || "Có lỗi xảy ra khi lưu sách!"
+      );
     } finally {
       setLoading(false);
     }
@@ -126,23 +209,26 @@ const BookForm = () => {
       {/* Page Header */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/admin/books')}
+          onClick={() => navigate("/admin/books")}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isEdit ? 'Chỉnh sửa sách' : 'Thêm sách mới'}
+            {isEdit ? "Chỉnh sửa sách" : "Thêm sách mới"}
           </h1>
           <p className="text-gray-600 mt-1">
-            {isEdit ? 'Cập nhật thông tin sách' : 'Nhập thông tin sách mới'}
+            {isEdit ? "Cập nhật thông tin sách" : "Nhập thông tin sách mới"}
           </p>
         </div>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+      >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Tên sách */}
           <div className="md:col-span-2">
@@ -245,11 +331,60 @@ const BookForm = () => {
             />
           </div>
 
-          {/* URL hình ảnh */}
-          <div>
+          {/* Hình ảnh sách */}
+          <div className="md:col-span-2">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              URL hình ảnh
+              Hình ảnh sách
             </label>
+
+            {/* Upload từ máy */}
+            <div className="mb-3">
+              <label className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <Upload size={20} className="text-gray-500" />
+                  <span className="text-sm text-gray-600">
+                    {uploading
+                      ? "Đang upload..."
+                      : "Chọn ảnh từ máy (tối đa 5MB)"}
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
+              {uploading && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-primary-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                  <span>Đang upload ảnh lên Cloudinary...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Preview ảnh */}
+            {imagePreview && (
+              <div className="mb-3 relative inline-block">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-48 h-48 object-cover rounded-lg border border-gray-300 shadow-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  title="Xóa ảnh"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* Hoặc nhập URL */}
+            <div className="text-sm text-gray-500 mb-2">Hoặc nhập URL:</div>
             <input
               type="url"
               name="imageUrl"
@@ -258,6 +393,21 @@ const BookForm = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder="https://example.com/image.jpg"
             />
+
+            {/* Preview URL nếu có và chưa có preview từ upload */}
+            {formData.imageUrl && !imagePreview && (
+              <div className="mt-3">
+                <img
+                  src={formData.imageUrl}
+                  alt="Preview"
+                  className="w-48 h-48 object-cover rounded-lg border border-gray-300 shadow-sm"
+                  onError={() => {
+                    toast.error("Không thể tải ảnh từ URL này");
+                    setImagePreview(null);
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Mô tả */}
@@ -280,7 +430,7 @@ const BookForm = () => {
         <div className="flex justify-end gap-4 mt-6 pt-6 border-t">
           <button
             type="button"
-            onClick={() => navigate('/admin/books')}
+            onClick={() => navigate("/admin/books")}
             className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Hủy
@@ -291,7 +441,7 @@ const BookForm = () => {
             className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
             <Save size={18} className="mr-2" />
-            {loading ? 'Đang lưu...' : isEdit ? 'Cập nhật' : 'Thêm mới'}
+            {loading ? "Đang lưu..." : isEdit ? "Cập nhật" : "Thêm mới"}
           </button>
         </div>
       </form>
@@ -300,4 +450,3 @@ const BookForm = () => {
 };
 
 export default BookForm;
-
