@@ -16,7 +16,18 @@ const Reviews = () => {
       setLoading(true);
       try {
         const response = await axiosInstance.get(`/reviews`);
-        setReviews(response.data || []);
+        const reviewsData = response.data || [];
+        console.log("📋 Reviews data from API:", reviewsData);
+        // Debug: Kiểm tra xem có bookTitle không
+        if (reviewsData.length > 0) {
+          console.log("📖 First review sample:", {
+            id: reviewsData[0].id,
+            bookId: reviewsData[0].bookId,
+            bookTitle: reviewsData[0].bookTitle,
+            hasBookTitle: !!reviewsData[0].bookTitle,
+          });
+        }
+        setReviews(reviewsData);
       } catch (error) {
         console.error("Lỗi khi tải đánh giá:", error);
         setReviews([]);
@@ -44,7 +55,18 @@ const Reviews = () => {
         // "all" - lấy tất cả đánh giá
         response = await axiosInstance.get(`/reviews`);
       }
-      setReviews(response.data || []);
+      const reviewsData = response.data || [];
+      console.log("📋 Reviews data from API:", reviewsData);
+      // Debug: Kiểm tra xem có bookTitle không
+      if (reviewsData.length > 0) {
+        console.log("📖 First review sample:", {
+          id: reviewsData[0].id,
+          bookId: reviewsData[0].bookId,
+          bookTitle: reviewsData[0].bookTitle,
+          hasBookTitle: !!reviewsData[0].bookTitle,
+        });
+      }
+      setReviews(reviewsData);
     } catch (error) {
       console.error("Lỗi khi tải đánh giá:", error);
       setReviews([]);

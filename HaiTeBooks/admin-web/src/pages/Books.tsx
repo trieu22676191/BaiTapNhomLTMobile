@@ -1,4 +1,4 @@
-import { Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -198,12 +198,38 @@ const Books = () => {
 
       {/* Search & Filter */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          {/* Quick Filter Button - Sách sắp hết hàng */}
+          <button
+            onClick={() => {
+              const lowStockCount = books.filter((book) => (book.stock || 0) <= 10).length;
+              if (lowStockCount > 0) {
+                setShowLowStockOnly(!showLowStockOnly);
+                setSearchParams({ lowStock: !showLowStockOnly ? "true" : "" });
+                setCurrentPage(1);
+              } else {
+                toast.error("Không có sách sắp hết hàng");
+              }
+            }}
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap h-10 ${
+              showLowStockOnly
+                ? "bg-orange-100 text-orange-800 border-2 border-orange-300"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-transparent"
+            }`}
+          >
+            <AlertTriangle
+              size={18}
+              className={`mr-2 ${showLowStockOnly ? "text-orange-600" : "text-gray-500"}`}
+            />
+            Sách sắp hết hàng (
+            {books.filter((book) => (book.stock || 0) <= 10).length})
+          </button>
+
           {/* Search Input */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 sm:max-w-xs">
             <Search
               className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={20}
+              size={18}
             />
             <input
               type="text"
@@ -213,15 +239,15 @@ const Books = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 h-10"
             />
           </div>
 
           {/* Category Filter */}
-          <div className="relative sm:w-64">
+          <div className="relative sm:w-56 w-full sm:w-auto">
             <Filter
               className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={20}
+              size={18}
             />
             <select
               value={selectedCategoryId}
@@ -229,7 +255,7 @@ const Books = () => {
                 setSelectedCategoryId(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none bg-white cursor-pointer"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 appearance-none bg-white cursor-pointer h-10"
             >
               <option value="all">Tất cả danh mục ({books.length})</option>
               <option value="uncategorized">
