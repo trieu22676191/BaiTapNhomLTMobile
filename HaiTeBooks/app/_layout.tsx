@@ -6,13 +6,23 @@ import { StyleSheet, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import BotTabs from "../app/mobile/components/BotTabs";
 import Header from "../app/mobile/components/Header";
-import { setAuthToken } from "../app/mobile/config/axiosConfig";
+import {
+  setAuthToken,
+  setNavigationCallback,
+} from "../app/mobile/config/axiosConfig";
 import { CartProvider } from "../app/mobile/context/CartContext";
 import { NotificationProvider } from "../app/mobile/context/NotificationContext";
 import { ThemeProvider } from "../app/mobile/context/ThemeContext";
 
 export default function RootLayout() {
   const router = useRouter();
+
+  // Set navigation callback cho axios interceptor
+  useEffect(() => {
+    setNavigationCallback((path: string) => {
+      router.replace(path as any);
+    });
+  }, [router]);
 
   // ✅ Handle deep linking khi app được mở từ URL (ví dụ: từ VNPay redirect)
   useEffect(() => {

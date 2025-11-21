@@ -1,5 +1,5 @@
 import { CheckCircle, Clock, Star, XCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import axiosInstance from "../config/axios";
 import { Review } from "../types";
@@ -7,7 +7,6 @@ import { Review } from "../types";
 const Reviews = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"user" | "book" | "all">("all");
   const [inputId, setInputId] = useState("");
 
@@ -109,10 +108,8 @@ const Reviews = () => {
     }
   };
 
-  const filteredReviews =
-    statusFilter === "all"
-      ? reviews
-      : reviews.filter((review) => review.status === statusFilter);
+  // Hiển thị tất cả reviews (không filter)
+  const filteredReviews = reviews;
 
   if (loading) {
     return (
@@ -221,44 +218,6 @@ const Reviews = () => {
         </div>
       </div>
 
-      {/* Status Filter */}
-      {reviews.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: "all", label: "Tất cả", count: reviews.length },
-              {
-                value: "pending",
-                label: "Chờ duyệt",
-                count: reviews.filter((r) => r.status === "pending").length,
-              },
-              {
-                value: "approved",
-                label: "Đã duyệt",
-                count: reviews.filter((r) => r.status === "approved").length,
-              },
-              {
-                value: "rejected",
-                label: "Từ chối",
-                count: reviews.filter((r) => r.status === "rejected").length,
-              },
-            ].map((filter) => (
-              <button
-                key={filter.value}
-                onClick={() => setStatusFilter(filter.value)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  statusFilter === filter.value
-                    ? "bg-primary-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                {filter.label} ({filter.count})
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Reviews List */}
       <div className="space-y-4">
         {reviews.length === 0 && !loading ? (
@@ -287,21 +246,17 @@ const Reviews = () => {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-gray-900">
-                        {review.bookTitle}
-                      </h3>
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}
-                      >
-                        <StatusIcon size={14} className="mr-1" />
-                        {statusInfo.label}
-                      </span>
-                    </div>
+                    {/* Tên sách - nổi bật */}
+                    <h3 className="text-lg font-bold text-gray-900 mb-3">
+                      {review.bookTitle || "Không có tên sách"}
+                    </h3>
+
+                    {/* Thông tin đánh giá */}
                     <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                      <span>{review.userName}</span>
-                      <span>•</span>
-                      <span>{formatDate(review.createdAt)}</span>
+                      <div className="flex items-center gap-1">
+                        <Clock size={14} className="text-gray-400" />
+                        <span>{formatDate(review.createdAt)}</span>
+                      </div>
                       <span>•</span>
                       <div className="flex items-center">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -316,8 +271,24 @@ const Reviews = () => {
                           />
                         ))}
                       </div>
+                      <span>•</span>
+                      <span className="font-medium">{review.userName}</span>
                     </div>
-                    <p className="text-gray-700">{review.comment}</p>
+
+                    {/* Status badge */}
+                    <div className="mb-3">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}
+                      >
+                        <StatusIcon size={14} className="mr-1" />
+                        {statusInfo.label}
+                      </span>
+                    </div>
+
+                    {/* Comment */}
+                    <p className="text-gray-700 text-base leading-relaxed">
+                      {review.comment}
+                    </p>
                   </div>
                 </div>
                 {review.status === "pending" && (

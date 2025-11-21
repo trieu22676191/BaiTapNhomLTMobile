@@ -54,16 +54,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 
       console.log("🔄 Unread notifications refreshed, count:", data.length);
     } catch (error: any) {
-      console.error("❌ Lỗi khi lấy số thông báo chưa đọc:", error);
+      // Chỉ log error nếu không phải 401/403 (token invalid)
+      // 401/403 sẽ được interceptor xử lý, không cần log lại
+      if (error?.response?.status !== 401 && error?.response?.status !== 403) {
+        console.error("❌ Lỗi khi lấy số thông báo chưa đọc:", error);
+      } else {
+        console.log("⚠️ Token invalid - skipping notification refresh");
+      }
       setUnreadCount(0);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Refresh khi app khởi động
+  // Refresh khi app khởi động (delay một chút để token được verify trước)
   useEffect(() => {
-    refreshUnreadCount();
+    // Delay 1 giây để đảm bảo token đã được verify trong _layout.tsx
+    const timeout = setTimeout(() => {
+      refreshUnreadCount();
+    }, 1000);
     
     // ✅ Refresh mỗi 5 giây để cập nhật nhanh hơn khi admin thay đổi trạng thái đơn hàng
     const interval = setInterval(refreshUnreadCount, 5000);
@@ -77,6 +86,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     
     return () => {
+      clearTimeout(timeout);
       clearInterval(interval);
       subscription.remove();
     };

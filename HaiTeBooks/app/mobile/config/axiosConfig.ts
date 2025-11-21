@@ -1,6 +1,14 @@
 import axios from 'axios';
+import { Alert } from 'react-native';
 
 let authToken: string | null = null;
+let isLoggingOut = false; // Flag để tránh logout nhiều lần
+let navigationCallback: ((path: string) => void) | null = null;
+
+// Set navigation callback từ _layout.tsx
+export const setNavigationCallback = (callback: (path: string) => void) => {
+  navigationCallback = callback;
+};
 
 const axiosInstance = axios.create({
   baseURL: 'https://haitebooks-backend.onrender.com/api',
@@ -60,12 +68,15 @@ axiosInstance.interceptors.response.use(
       if (status === 401 || status === 403) {
         // Bỏ qua logout cho auth endpoints và một số endpoints đặc biệt
         // Không logout khi xóa cart item hoặc tạo order (có thể do lỗi khác, không phải token invalid)
+        // Bỏ qua logout cho /users/me vì _layout.tsx đã tự xử lý
         const shouldSkipLogout = 
           url.includes('/auth/') || 
+          url.includes('/users/me') || // Skip vì _layout.tsx đã xử lý
           (url.includes('/cart/') && error.config.method === 'delete') ||
           (url.includes('/orders') && error.config.method === 'post');
         
-        if (!shouldSkipLogout) {
+        if (!shouldSkipLogout && !isLoggingOut) {
+          isLoggingOut = true; // Đặt flag để tránh logout nhiều lần
           console.log('🔴 Token invalid - Auto logout');
           
           // Import AsyncStorage để clear token
@@ -75,11 +86,40 @@ axiosInstance.interceptors.response.use(
             await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
             setAuthToken(undefined);
             console.log('✅ Cleared auth data');
+            
+            // Hiển thị thông báo và navigate đến trang login
+            Alert.alert(
+              'Phiên đăng nhập hết hạn',
+              'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại để tiếp tục sử dụng.',
+              [
+                {
+                  text: 'Đăng nhập',
+                  onPress: () => {
+                    // Navigate đến trang account (sẽ hiển thị Login component)
+                    if (navigationCallback) {
+                      navigationCallback('/account');
+                    } else {
+                      console.log('⚠️ Navigation callback not set');
+                    }
+                  },
+                },
+              ],
+              { cancelable: false }
+            );
           } catch (e) {
             console.error('❌ Error clearing auth data:', e);
+          } finally {
+            // Reset flag sau 2 giây để cho phép logout lại nếu cần
+            setTimeout(() => {
+              isLoggingOut = false;
+            }, 2000);
           }
         } else {
-          console.log('⚠️ Skipping auto logout for:', url);
+          if (isLoggingOut) {
+            console.log('⚠️ Already logging out, skipping duplicate logout for:', url);
+          } else {
+            console.log('⚠️ Skipping auto logout for:', url);
+          }
         }
       }
       
