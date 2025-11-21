@@ -1,7 +1,9 @@
-import { CheckCircle, Clock, Star, XCircle } from "lucide-react";
+import { Clock, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import ConfirmDialog from "../components/ConfirmDialog";
 import axiosInstance from "../config/axios";
+import { useConfirm } from "../hooks/useConfirm";
 import { Review } from "../types";
 
 const Reviews = () => {
@@ -9,6 +11,8 @@ const Reviews = () => {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"user" | "book" | "all">("all");
   const [inputId, setInputId] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const { confirm, confirmState, handleCancel, handleConfirm } = useConfirm();
 
   // Tự động load dữ liệu khi component mount
   useEffect(() => {
@@ -17,16 +21,6 @@ const Reviews = () => {
       try {
         const response = await axiosInstance.get(`/reviews`);
         const reviewsData = response.data || [];
-        console.log("📋 Reviews data from API:", reviewsData);
-        // Debug: Kiểm tra xem có bookTitle không
-        if (reviewsData.length > 0) {
-          console.log("📖 First review sample:", {
-            id: reviewsData[0].id,
-            bookId: reviewsData[0].bookId,
-            bookTitle: reviewsData[0].bookTitle,
-            hasBookTitle: !!reviewsData[0].bookTitle,
-          });
-        }
         setReviews(reviewsData);
       } catch (error) {
         console.error("Lỗi khi tải đánh giá:", error);
@@ -56,16 +50,6 @@ const Reviews = () => {
         response = await axiosInstance.get(`/reviews`);
       }
       const reviewsData = response.data || [];
-      console.log("📋 Reviews data from API:", reviewsData);
-      // Debug: Kiểm tra xem có bookTitle không
-      if (reviewsData.length > 0) {
-        console.log("📖 First review sample:", {
-          id: reviewsData[0].id,
-          bookId: reviewsData[0].bookId,
-          bookTitle: reviewsData[0].bookTitle,
-          hasBookTitle: !!reviewsData[0].bookTitle,
-        });
-      }
       setReviews(reviewsData);
     } catch (error) {
       console.error("Lỗi khi tải đánh giá:", error);
@@ -73,21 +57,6 @@ const Reviews = () => {
       toast.error("Không tìm thấy đánh giá!");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUpdateStatus = async (id: number, status: string) => {
-    try {
-      await axiosInstance.patch(`/reviews/${id}/status`, { status });
-      setReviews(
-        reviews.map((review) =>
-          review.id === id ? { ...review, status: status as any } : review
-        )
-      );
-      toast.success("Cập nhật trạng thái thành công!");
-    } catch (error) {
-      console.error("Lỗi khi cập nhật trạng thái:", error);
-      toast.error("Có lỗi xảy ra!");
     }
   };
 
@@ -101,37 +70,32 @@ const Reviews = () => {
     });
   };
 
-  const getStatusInfo = (status: string) => {
-    switch (status) {
-      case "pending":
-        return {
-          label: "Chờ duyệt",
-          icon: Clock,
-          color: "bg-yellow-100 text-yellow-800",
-        };
-      case "approved":
-        return {
-          label: "Đã duyệt",
-          icon: CheckCircle,
-          color: "bg-green-100 text-green-800",
-        };
-      case "rejected":
-        return {
-          label: "Từ chối",
-          icon: XCircle,
-          color: "bg-red-100 text-red-800",
-        };
-      default:
-        return {
-          label: status,
-          icon: Clock,
-          color: "bg-gray-100 text-gray-800",
-        };
+  const handleDeleteReview = async (reviewId: number) => {
+    const confirmed = await confirm({
+      title: "Xóa đánh giá",
+      message: "Bạn có chắc chắn muốn xóa đánh giá này?",
+      confirmText: "Xóa",
+      cancelText: "Hủy",
+      type: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(reviewId);
+    try {
+      await axiosInstance.delete(`/reviews/${reviewId}`);
+      toast.success("Xóa đánh giá thành công!");
+      // Cập nhật danh sách sau khi xóa
+      setReviews(reviews.filter((review) => review.id !== reviewId));
+    } catch (error: any) {
+      console.error("Lỗi khi xóa đánh giá:", error);
+      toast.error(error?.response?.data?.message || "Không thể xóa đánh giá!");
+    } finally {
+      setDeletingId(null);
     }
   };
-
-  // Hiển thị tất cả reviews (không filter)
-  const filteredReviews = reviews;
 
   if (loading) {
     return (
@@ -163,7 +127,6 @@ const Reviews = () => {
                 const response = await axiosInstance.get(`/reviews`);
                 setReviews(response.data || []);
               } catch (error) {
-                console.error("Lỗi khi tải đánh giá:", error);
                 setReviews([]);
                 toast.error("Không tìm thấy đánh giá!");
               } finally {
@@ -253,14 +216,8 @@ const Reviews = () => {
                 : "Nhập User ID và nhấn Tìm kiếm để xem đánh giá"}
             </p>
           </div>
-        ) : filteredReviews.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center text-gray-500">
-            Không có đánh giá nào phù hợp với bộ lọc
-          </div>
         ) : (
-          filteredReviews.map((review) => {
-            const statusInfo = getStatusInfo(review.status);
-            const StatusIcon = statusInfo.icon;
+          reviews.map((review) => {
             return (
               <div
                 key={review.id}
@@ -302,12 +259,33 @@ const Reviews = () => {
                       {review.comment}
                     </p>
                   </div>
+                  {/* Nút xóa */}
+                  <button
+                    onClick={() => handleDeleteReview(review.id)}
+                    disabled={deletingId === review.id}
+                    className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Xóa đánh giá"
+                  >
+                    <Trash2 size={20} />
+                  </button>
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title || "Xác nhận"}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 };
