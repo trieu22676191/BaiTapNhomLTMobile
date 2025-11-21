@@ -21,8 +21,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [errorCount, setErrorCount] = useState(0); // Đếm số lỗi liên tiếp
 
   const refreshUnreadCount = useCallback(async () => {
+    // Sử dụng functional update để luôn có errorCount mới nhất
     try {
       setLoading(true);
 
@@ -51,17 +53,45 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       const response = await axiosInstance.get(`/notifications/unread/${user.id}`);
       const data = response.data || [];
       setUnreadCount(data.length);
+      setErrorCount(0); // Reset error count khi thành công
 
       console.log("🔄 Unread notifications refreshed, count:", data.length);
     } catch (error: any) {
-      // Chỉ log error nếu không phải 401/403 (token invalid)
-      // 401/403 sẽ được interceptor xử lý, không cần log lại
-      if (error?.response?.status !== 401 && error?.response?.status !== 403) {
-        console.error("❌ Lỗi khi lấy số thông báo chưa đọc:", error);
-      } else {
+      const status = error?.response?.status;
+      
+      // Xử lý các loại lỗi khác nhau
+      if (status === 401 || status === 403) {
+        // Token invalid - interceptor sẽ xử lý
         console.log("⚠️ Token invalid - skipping notification refresh");
+        setUnreadCount(0);
+        setErrorCount(0); // Reset error count cho auth errors
+      } else if (status === 502 || status === 503 || status === 504) {
+        // Bad Gateway / Service Unavailable / Gateway Timeout
+        // Backend tạm thời không khả dụng - tăng error count và log (chỉ 3 lần đầu)
+        setErrorCount((prev) => {
+          const newCount = prev + 1;
+          if (newCount <= 3) {
+            // Chỉ log 3 lần đầu để tránh spam
+            console.log("⚠️ Backend temporarily unavailable (502/503/504) - keeping current count");
+          }
+          return newCount;
+        });
+        // Không set unreadCount về 0, giữ nguyên giá trị hiện tại
+      } else if (status >= 500) {
+        // Server errors khác - tăng error count và log (chỉ 3 lần đầu)
+        setErrorCount((prev) => {
+          const newCount = prev + 1;
+          if (newCount <= 3) {
+            console.warn("⚠️ Server error when fetching notifications:", status);
+          }
+          return newCount;
+        });
+        // Giữ nguyên count hiện tại thay vì set về 0
+      } else {
+        // Các lỗi khác (network, timeout, etc.) - không tăng error count
+        console.warn("⚠️ Error fetching notifications:", error?.message || "Unknown error");
+        // Giữ nguyên count hiện tại
       }
-      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
@@ -74,10 +104,32 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       refreshUnreadCount();
     }, 1000);
     
-    // ✅ Refresh mỗi 5 giây để cập nhật nhanh hơn khi admin thay đổi trạng thái đơn hàng
-    const interval = setInterval(refreshUnreadCount, 5000);
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [refreshUnreadCount]);
+
+  // ✅ Refresh định kỳ với interval động dựa trên errorCount
+  useEffect(() => {
+    // Tính interval dựa trên số lỗi liên tiếp
+    let intervalMs = 5000; // Mặc định 5 giây
+    if (errorCount >= 5) {
+      intervalMs = 30000; // 30 giây nếu có 5+ lỗi liên tiếp
+    } else if (errorCount >= 3) {
+      intervalMs = 15000; // 15 giây nếu có 3+ lỗi liên tiếp
+    }
     
-    // ✅ Refresh khi app active lại (từ background)
+    const interval = setInterval(() => {
+      refreshUnreadCount();
+    }, intervalMs);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, [refreshUnreadCount, errorCount]);
+
+  // ✅ Refresh khi app active lại (từ background)
+  useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
       if (nextAppState === "active") {
         console.log("📱 App became active - refreshing notifications");
@@ -86,8 +138,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     
     return () => {
-      clearTimeout(timeout);
-      clearInterval(interval);
       subscription.remove();
     };
   }, [refreshUnreadCount]);

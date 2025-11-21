@@ -147,10 +147,97 @@ const Account: React.FC = () => {
 
       setAuthToken(token);
       const response = await axiosInstance.get(`/orders/user/${user.id}`);
-      setOrders(response.data || []);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-      setOrders([]);
+      const newOrders = response.data || [];
+
+      // ✅ Phát hiện đơn hàng có trạng thái thay đổi và xóa khỏi viewedOrderIds
+      // để đơn hàng đó được coi là "chưa xem" ở trạng thái mới
+      setOrders((prevOrders) => {
+        if (prevOrders.length === 0) {
+          // Lần đầu load, không cần so sánh
+          return newOrders;
+        }
+
+        // Tạo map để so sánh trạng thái cũ và mới
+        const prevOrderMap = new Map(prevOrders.map((o) => [o.id, o.status]));
+        const statusChangedOrderIds: number[] = [];
+
+        newOrders.forEach((newOrder: Order) => {
+          const prevStatus = prevOrderMap.get(newOrder.id);
+          if (prevStatus && prevStatus !== newOrder.status) {
+            // Trạng thái đã thay đổi
+            statusChangedOrderIds.push(newOrder.id);
+            console.log(
+              `🔄 Order #${newOrder.id} status changed: ${prevStatus} → ${newOrder.status}`
+            );
+          }
+        });
+
+        // Xóa các đơn hàng có trạng thái thay đổi khỏi viewedOrderIds
+        if (statusChangedOrderIds.length > 0) {
+          // Load viewedOrderIds hiện tại
+          AsyncStorage.getItem("viewed_order_ids")
+            .then((viewedData) => {
+              const viewedIds = viewedData ? JSON.parse(viewedData) : [];
+              const newViewedIds = viewedIds.filter(
+                (id: number) => !statusChangedOrderIds.includes(id)
+              );
+
+              // Cập nhật AsyncStorage
+              AsyncStorage.setItem(
+                "viewed_order_ids",
+                JSON.stringify(newViewedIds)
+              ).then(() => {
+                // Cập nhật state
+                setViewedOrderIds(new Set(newViewedIds));
+              });
+            })
+            .catch((err) => {
+              console.warn("⚠️ Error updating viewed orders:", err);
+            });
+        }
+
+        return newOrders;
+      });
+
+      // ✅ Reload viewedOrderIds mỗi khi fetch orders để cập nhật badge
+      // (sau khi đã xử lý status changes ở trên)
+      setTimeout(async () => {
+        try {
+          const viewedData = await AsyncStorage.getItem("viewed_order_ids");
+          if (viewedData) {
+            const viewedIds = JSON.parse(viewedData);
+            setViewedOrderIds(new Set(viewedIds));
+          } else {
+            setViewedOrderIds(new Set());
+          }
+        } catch (viewedError) {
+          console.warn("⚠️ Error loading viewed orders:", viewedError);
+          setViewedOrderIds(new Set());
+        }
+      }, 100); // Delay nhỏ để đảm bảo AsyncStorage đã được cập nhật
+    } catch (error: any) {
+      const status = error?.response?.status;
+      
+      // Xử lý các loại lỗi khác nhau
+      if (status === 401 || status === 403) {
+        // Token invalid - interceptor sẽ xử lý
+        console.log("⚠️ Token invalid - skipping orders fetch");
+        setOrders([]);
+      } else if (status === 502 || status === 503 || status === 504) {
+        // Bad Gateway / Service Unavailable / Gateway Timeout
+        // Backend tạm thời không khả dụng - không log error, giữ nguyên orders hiện tại
+        console.log("⚠️ Backend temporarily unavailable (502/503/504) - keeping current orders");
+        // Không set orders về [], giữ nguyên giá trị hiện tại
+      } else if (status >= 500) {
+        // Server errors khác - log nhưng không crash
+        console.warn("⚠️ Server error when fetching orders:", status);
+        // Giữ nguyên orders hiện tại
+      } else {
+        // Các lỗi khác (network, timeout, etc.)
+        console.warn("⚠️ Error fetching orders:", error?.message || "Unknown error");
+        // Chỉ set về [] nếu không phải lỗi server
+        setOrders([]);
+      }
     } finally {
       setLoadingOrders(false);
     }
@@ -284,6 +371,38 @@ const Account: React.FC = () => {
     }
   }, [user?.id, fetchOrders]);
 
+  // ✅ Refresh orders định kỳ để cập nhật khi admin thay đổi trạng thái
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Refresh ngay lập tức
+    fetchOrders();
+
+    // Refresh mỗi 10 giây để cập nhật khi admin thay đổi trạng thái đơn hàng
+    const interval = setInterval(() => {
+      console.log("🔄 Auto-refreshing orders...");
+      fetchOrders();
+    }, 10000); // 10 giây
+
+    return () => clearInterval(interval);
+  }, [user?.id, fetchOrders]);
+
+  // ✅ Refresh orders khi app active lại (từ background)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        console.log("📱 App became active - refreshing orders");
+        fetchOrders();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [user?.id, fetchOrders]);
+
   useEffect(() => {
     fetchVoucherCount();
   }, [fetchVoucherCount]);
@@ -303,6 +422,39 @@ const Account: React.FC = () => {
     };
     loadViewedOrders();
   }, []);
+
+  // Đếm số lượng orders chưa xem theo status (phải đặt trước early returns)
+  const orderCounts = {
+    pending: orders.filter(
+      (o) => o.status === "PENDING" && !viewedOrderIds.has(o.id)
+    ).length,
+    processing: orders.filter(
+      (o) => o.status === "PROCESSING" && !viewedOrderIds.has(o.id)
+    ).length,
+    shipping: orders.filter(
+      (o) => o.status === "SHIPPING" && !viewedOrderIds.has(o.id)
+    ).length,
+    completed: orders.filter(
+      (o) => o.status === "COMPLETED" && !viewedOrderIds.has(o.id)
+    ).length,
+    cancelled: orders.filter(
+      (o) => o.status === "CANCELLED" && !viewedOrderIds.has(o.id)
+    ).length,
+  };
+
+  // Debug: Log order counts để kiểm tra (phải đặt trước early returns)
+  useEffect(() => {
+    if (!user) return; // Chỉ log khi có user
+    console.log("📊 Order counts updated:", {
+      pending: orderCounts.pending,
+      processing: orderCounts.processing,
+      shipping: orderCounts.shipping,
+      completed: orderCounts.completed,
+      cancelled: orderCounts.cancelled,
+      totalOrders: orders.length,
+      viewedOrders: viewedOrderIds.size,
+    });
+  }, [orderCounts.pending, orderCounts.processing, orderCounts.shipping, orderCounts.completed, orderCounts.cancelled, orders.length, viewedOrderIds.size, user]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -370,24 +522,6 @@ const Account: React.FC = () => {
     );
   }
 
-  // Đếm số lượng orders chưa xem theo status
-  const orderCounts = {
-    pending: orders.filter(
-      (o) => o.status === "PENDING" && !viewedOrderIds.has(o.id)
-    ).length,
-    processing: orders.filter(
-      (o) => o.status === "PROCESSING" && !viewedOrderIds.has(o.id)
-    ).length,
-    shipping: orders.filter(
-      (o) => o.status === "SHIPPING" && !viewedOrderIds.has(o.id)
-    ).length,
-    completed: orders.filter(
-      (o) => o.status === "COMPLETED" && !viewedOrderIds.has(o.id)
-    ).length,
-    cancelled: orders.filter(
-      (o) => o.status === "CANCELLED" && !viewedOrderIds.has(o.id)
-    ).length,
-  };
 
   if (user.role_id === "admin") {
     return (
