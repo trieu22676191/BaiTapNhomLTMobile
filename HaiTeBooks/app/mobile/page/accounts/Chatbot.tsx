@@ -13,43 +13,25 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import axiosInstance from "../../config/axiosConfig";
 import { useTheme } from "../../context/ThemeContext";
-
-interface Message {
-  id: string;
-  text: string;
-  isUser: boolean;
-  timestamp: Date;
-  suggestedBooks?: string[];
-  sources?: string[];
-}
-
-interface ChatResponse {
-  response: string;
-  suggestedBooks: string[];
-  sources: string[];
-  conversationId: string;
-}
+import { useChat } from "../../hooks/useChat";
+import { ChatMessage } from "../../types/chat.types";
 
 const Chatbot: React.FC = () => {
   const router = useRouter();
   const { colors } = useTheme();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      text: "Xin chào! Tôi là trợ lý AI của HaiTeBooks. Tôi có thể giúp bạn tìm sách, trả lời câu hỏi về đơn hàng, và tư vấn sách phù hợp. Bạn cần hỗ trợ gì?",
-      isUser: false,
-      timestamp: new Date(),
-    },
-  ]);
-  const [inputText, setInputText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const [inputText, setInputText] = useState("");
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    clearChat,
+    retryLastMessage,
+  } = useChat();
 
+  // Tự động scroll xuống khi có message mới
   useEffect(() => {
-    // Scroll to bottom when new message is added
     if (messages.length > 0) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -58,51 +40,14 @@ const Chatbot: React.FC = () => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputText.trim() || loading) return;
+    const cleanMessage = inputText.trim();
+    if (!cleanMessage || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText.trim(),
-      isUser: true,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
     setInputText("");
-    setLoading(true);
-
-    try {
-      const response = await axiosInstance.post<ChatResponse>("/ai/chat", {
-        message: inputText.trim(),
-        conversationId: conversationId || undefined,
-      });
-
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: response.data.response,
-        isUser: false,
-        timestamp: new Date(),
-        suggestedBooks: response.data.suggestedBooks || [],
-        sources: response.data.sources || [],
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-      setConversationId(response.data.conversationId);
-    } catch (error: any) {
-      console.error("❌ Error sending message:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau.",
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
-    }
+    await sendMessage(cleanMessage);
   };
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const renderMessage = ({ item }: { item: ChatMessage }) => {
     return (
       <View>
         <View
@@ -112,8 +57,12 @@ const Chatbot: React.FC = () => {
           ]}
         >
           {!item.isUser && (
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
+            <View style={[styles.avatar, { backgroundColor: item.isError ? "#EF4444" : colors.primary }]}>
+              <Ionicons 
+                name={item.isError ? "alert-circle" : "chatbubbles"} 
+                size={20} 
+                color="#FFFFFF" 
+              />
             </View>
           )}
           <View
@@ -121,17 +70,39 @@ const Chatbot: React.FC = () => {
               styles.messageBubble,
               item.isUser
                 ? [styles.userBubble, { backgroundColor: colors.primary }]
+                : item.isError
+                ? styles.errorBubble
                 : styles.aiBubble,
             ]}
           >
+            {item.isError && (
+              <View style={styles.errorHeader}>
+                <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                <Text style={styles.errorHeaderText}>Đã xảy ra lỗi</Text>
+              </View>
+            )}
             <Text
               style={[
                 styles.messageText,
-                item.isUser ? styles.userMessageText : styles.aiMessageText,
+                item.isUser
+                  ? styles.userMessageText
+                  : item.isError
+                  ? styles.errorMessageText
+                  : styles.aiMessageText,
               ]}
             >
-              {item.text}
+              {item.message}
             </Text>
+            {item.isError && item.canRetry && (
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={retryLastMessage}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="refresh" size={16} color={colors.primary} />
+                <Text style={styles.retryButtonText}>Thử lại</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {item.isUser && (
             <View style={[styles.avatar, { backgroundColor: "#E5E7EB" }]}>
@@ -139,39 +110,6 @@ const Chatbot: React.FC = () => {
             </View>
           )}
         </View>
-        {!item.isUser && item.suggestedBooks && item.suggestedBooks.length > 0 && (
-          <View style={styles.suggestedBooksWrapper}>
-            {renderSuggestedBooks(item.suggestedBooks)}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderSuggestedBooks = (suggestedBooks: string[]) => {
-    if (!suggestedBooks || suggestedBooks.length === 0) return null;
-
-    return (
-      <View style={styles.suggestedBooksContainer}>
-        <Text style={styles.suggestedBooksTitle}>📚 Sách được đề xuất:</Text>
-        {suggestedBooks.map((book, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.suggestedBookItem}
-            activeOpacity={0.7}
-            onPress={() => {
-              // Navigate đến trang tìm kiếm với tên sách
-              router.push({
-                pathname: "/mobile/page/suggestions/Suggestion",
-                params: { searchQuery: book },
-              });
-            }}
-          >
-            <Ionicons name="book" size={16} color={colors.primary} />
-            <Text style={styles.suggestedBookText}>{book}</Text>
-            <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-        ))}
       </View>
     );
   };
@@ -193,7 +131,12 @@ const Chatbot: React.FC = () => {
           <Text style={styles.headerTitle}>Trợ lý AI</Text>
           <Text style={styles.headerSubtitle}>HaiTeBooks</Text>
         </View>
-        <View style={styles.backButton} />
+        <TouchableOpacity
+          onPress={clearChat}
+          style={styles.clearButton}
+        >
+          <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       {/* Messages */}
@@ -206,8 +149,12 @@ const Chatbot: React.FC = () => {
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }}
+        onLayout={() => {
+          flatListRef.current?.scrollToEnd({ animated: false });
+        }}
+        removeClippedSubviews={false}
         ListFooterComponent={
-          loading ? (
+          isLoading ? (
             <View style={styles.loadingContainer}>
               <View style={styles.aiMessageContainer}>
                 <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
@@ -236,19 +183,20 @@ const Chatbot: React.FC = () => {
             placeholderTextColor="#9CA3AF"
             multiline
             maxLength={500}
-            editable={!loading}
+            editable={!isLoading}
+            onSubmitEditing={handleSend}
           />
           <TouchableOpacity
             style={[
               styles.sendButton,
               { backgroundColor: colors.primary },
-              (!inputText.trim() || loading) && styles.sendButtonDisabled,
+              (!inputText.trim() || isLoading) && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
-            disabled={!inputText.trim() || loading}
+            disabled={!inputText.trim() || isLoading}
             activeOpacity={0.7}
           >
-            {loading ? (
+            {isLoading ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Ionicons name="send" size={20} color="#FFFFFF" />
@@ -275,6 +223,12 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clearButton: {
     width: 40,
     height: 40,
     alignItems: "center",
@@ -337,6 +291,33 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  errorBubble: {
+    backgroundColor: "#FEF2F2",
+    borderBottomLeftRadius: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: "#EF4444",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  errorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#FCA5A5",
+  },
+  errorHeaderText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#DC2626",
+    marginLeft: 6,
+  },
   messageText: {
     fontSize: 15,
     lineHeight: 20,
@@ -347,40 +328,25 @@ const styles = StyleSheet.create({
   aiMessageText: {
     color: "#111827",
   },
-  loadingContainer: {
-    paddingVertical: 8,
+  errorMessageText: {
+    color: "#DC2626",
   },
-  suggestedBooksWrapper: {
-    marginLeft: 48,
-    marginTop: 8,
-  },
-  suggestedBooksContainer: {
-    padding: 12,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: "#C92127",
-  },
-  suggestedBooksTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginBottom: 8,
-  },
-  suggestedBookItem: {
+  retryButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    marginBottom: 4,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#FCA5A5",
   },
-  suggestedBookText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#111827",
-    marginLeft: 8,
+  retryButtonText: {
+    fontSize: 13,
+    color: "#C92127",
+    marginLeft: 4,
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    paddingVertical: 8,
   },
   inputContainer: {
     flexDirection: "row",
@@ -416,4 +382,3 @@ const styles = StyleSheet.create({
 });
 
 export default Chatbot;
-

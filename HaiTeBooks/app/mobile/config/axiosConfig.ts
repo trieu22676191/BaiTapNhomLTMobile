@@ -13,7 +13,7 @@ export const setNavigationCallback = (callback: (path: string) => void) => {
 const axiosInstance = axios.create({
   baseURL: 'https://haitebooks-backend.onrender.com/api',
   // baseURL: 'http://192.168.100.156:8080/api',
-  timeout: 10000,
+  timeout: 30000, // Tăng timeout lên 30 giây cho AI chat
   headers: { 
     'Content-Type': 'application/json',
     'Accept': 'application/json',

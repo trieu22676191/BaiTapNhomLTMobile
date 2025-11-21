@@ -1004,6 +1004,13 @@ const BookDetail: React.FC<BookDetailProps> = ({
           onClose={() => {
             setShowSimilarBooks(false);
           }}
+          onBookClick={(newBookId) => {
+            // Đóng SimilarBooksModal và mở BookDetail mới
+            setShowSimilarBooks(false);
+            setTimeout(() => {
+              setCurrentBookId(newBookId);
+            }, 300);
+          }}
         />
       )}
     </>

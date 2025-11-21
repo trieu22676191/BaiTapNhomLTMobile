@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import axiosInstance from "../../config/axiosConfig";
-import BookDetail from "./BookDetail";
 
 type Book = {
   id: number;
@@ -50,8 +49,6 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
   const [recommendations, setRecommendations] = useState<Book[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [showBookDetail, setShowBookDetail] = useState(false);
-  const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
 
   useEffect(() => {
     if (visible && bookId) {
@@ -160,19 +157,17 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
   };
 
   const openBookDetail = (id: number) => {
-    // Nếu có callback từ parent, sử dụng callback đó
+    // Sử dụng callback từ parent để mở BookDetail
     if (onBookClick) {
       onClose();
       setTimeout(() => {
         onBookClick(id);
       }, 300);
     } else {
-      // Fallback: mở BookDetail modal trong component này
+      // Nếu không có callback, chỉ đóng modal
+      // Component cha sẽ quản lý BookDetail
+      console.warn("⚠️ SimilarBooksModal: onBookClick callback is required to open book detail");
       onClose();
-      setTimeout(() => {
-        setSelectedBookId(id);
-        setShowBookDetail(true);
-      }, 300);
     }
   };
 
@@ -319,15 +314,6 @@ const SimilarBooksModal: React.FC<SimilarBooksModalProps> = ({
           </View>
         </View>
       </Modal>
-
-      <BookDetail
-        visible={showBookDetail}
-        bookId={selectedBookId}
-        onClose={() => {
-          setShowBookDetail(false);
-          setSelectedBookId(null);
-        }}
-      />
     </>
   );
 };
