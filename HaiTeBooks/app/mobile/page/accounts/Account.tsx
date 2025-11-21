@@ -17,6 +17,7 @@ import AppSettings from "../../components/account/AppSettings"; // Thêm import
 import Profile from "../../components/account/Profile"; // Thêm import
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
 import { useCart } from "../../context/CartContext";
+import { useNotification } from "../../context/NotificationContext";
 import { useTheme } from "../../context/ThemeContext";
 import { User } from "../../types/user"; // Thêm import
 import Login from "./Login";
@@ -42,6 +43,7 @@ const Account: React.FC = () => {
   const router = useRouter();
   const { colors } = useTheme();
   const { refreshCart } = useCart();
+  const { refreshUnreadCount } = useNotification();
   const [user, setUser] = useState<User | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [showRePass, setShowRePass] = useState(false);
@@ -262,7 +264,9 @@ const Account: React.FC = () => {
       };
       checkSession();
       fetchVoucherCount();
-    }, [fetchVoucherCount])
+      // ✅ Refresh notification khi focus vào Account tab (để cập nhật khi admin thay đổi trạng thái)
+      refreshUnreadCount();
+    }, [fetchVoucherCount, refreshUnreadCount])
   );
 
   // Fetch orders khi user thay đổi

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
+import { useNotification } from "../../context/NotificationContext";
 import { useTheme } from "../../context/ThemeContext";
 import { User } from "../../types/user";
 
@@ -33,6 +34,7 @@ type TabType = "unread" | "read";
 const Notification: React.FC = () => {
   const { colors } = useTheme();
   const router = useRouter();
+  const { refreshUnreadCount, unreadCount } = useNotification();
   const [user, setUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,13 +137,14 @@ const Notification: React.FC = () => {
     }
   }, [user?.id, fetchNotifications]);
 
-  // Refresh khi focus vào trang
+  // Refresh badge khi focus vào trang (không refresh danh sách tự động)
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
-        fetchNotifications();
+        // ✅ Chỉ refresh badge, không refresh danh sách tự động
+        refreshUnreadCount();
       }
-    }, [user?.id, fetchNotifications])
+    }, [user?.id, refreshUnreadCount])
   );
 
   const onRefresh = useCallback(() => {
@@ -164,6 +167,9 @@ const Notification: React.FC = () => {
       setNotifications((prev) =>
         prev.map((noti) => (noti.id === id ? { ...noti, isRead: true } : noti))
       );
+
+      // ✅ Refresh unread count ngay lập tức để cập nhật badge
+      refreshUnreadCount();
 
       // Refresh lại từ server sau 300ms để đảm bảo sync
       setTimeout(() => {
@@ -198,6 +204,9 @@ const Notification: React.FC = () => {
         prev.map((noti) => ({ ...noti, isRead: true }))
       );
 
+      // ✅ Refresh unread count ngay lập tức để cập nhật badge
+      refreshUnreadCount();
+
       // Refresh lại từ server sau 300ms để đảm bảo sync
       setTimeout(() => {
         if (user?.id) {
@@ -229,7 +238,13 @@ const Notification: React.FC = () => {
             await axiosInstance.delete(`/notifications/${id}`);
 
             // Update local state
+            const deletedNotification = notifications.find((n) => n.id === id);
             setNotifications((prev) => prev.filter((noti) => noti.id !== id));
+
+            // ✅ Nếu xóa notification chưa đọc, refresh unread count
+            if (deletedNotification && !deletedNotification.isRead) {
+              refreshUnreadCount();
+            }
           } catch (error: any) {
             console.error("❌ Lỗi khi xóa thông báo:", error);
             Alert.alert("Lỗi", "Không thể xóa thông báo");
@@ -349,7 +364,7 @@ const Notification: React.FC = () => {
     );
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const localUnreadCount = notifications.filter((n) => !n.isRead).length;
   const readCount = notifications.filter((n) => n.isRead).length;
 
   // Filter notifications theo tab

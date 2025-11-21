@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import axiosInstance, { setAuthToken } from "../../config/axiosConfig";
+import { useNotification } from "../../context/NotificationContext";
 import { User } from "../../types/user";
 
 interface Order {
@@ -36,6 +38,7 @@ interface OrderItem {
 
 const MyOrder: React.FC = () => {
   const router = useRouter();
+  const { refreshUnreadCount } = useNotification();
   const params = useLocalSearchParams<{ status?: string }>();
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -231,6 +234,13 @@ const MyOrder: React.FC = () => {
       setStatusFilter("all");
     }
   }, [params.status]);
+
+  // ✅ Refresh notification khi focus vào trang MyOrder (để cập nhật khi admin thay đổi trạng thái)
+  useFocusEffect(
+    useCallback(() => {
+      refreshUnreadCount();
+    }, [refreshUnreadCount])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
