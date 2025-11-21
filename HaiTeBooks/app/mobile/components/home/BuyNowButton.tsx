@@ -46,12 +46,30 @@ const BuyNowButton: React.FC<BuyNowButtonProps> = ({
       );
 
       if (!token) {
-        console.log("⚠️ No token found, redirecting to login");
-        // Điều hướng tới trang tài khoản/đăng nhập
-        router.push({
-          pathname: "/account",
-          params: { next: "add_to_cart", bookId: String(bookId) },
-        });
+        console.log("⚠️ No token found, showing alert before redirecting to login");
+        // Hiển thị thông báo trước khi chuyển đến trang đăng nhập
+        Alert.alert(
+          "Yêu cầu đăng nhập",
+          "Bạn cần đăng nhập để thêm sách vào giỏ hàng. Vui lòng đăng nhập để tiếp tục.",
+          [
+            {
+              text: "Hủy",
+              style: "cancel",
+            },
+            {
+              text: "Đăng nhập",
+              onPress: () => {
+                // Điều hướng tới trang tài khoản/đăng nhập
+                router.push({
+                  pathname: "/account",
+                  params: { next: "add_to_cart", bookId: String(bookId) },
+                });
+              },
+            },
+          ],
+          { cancelable: true }
+        );
+        setIsAddingToCart(false);
         return;
       }
 
