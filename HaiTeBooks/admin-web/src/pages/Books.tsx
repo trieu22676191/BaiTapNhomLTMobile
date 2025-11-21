@@ -1,4 +1,4 @@
-import { AlertTriangle, Edit, Eye, Filter, Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit, Eye, Filter, Plus, Search, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -14,8 +14,12 @@ const Books = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
+  const [bookSalesMap, setBookSalesMap] = useState<Map<number, number>>(new Map()); // bookId -> totalSold
   const [showLowStockOnly, setShowLowStockOnly] = useState<boolean>(
     searchParams.get("lowStock") === "true"
+  );
+  const [showBestSellerOnly, setShowBestSellerOnly] = useState<boolean>(
+    searchParams.get("bestSeller") === "true"
   );
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -45,22 +49,56 @@ const Books = () => {
     } else {
       setShowLowStockOnly(false);
     }
+    
+    const bestSellerFromUrl = searchParams.get("bestSeller");
+    if (bestSellerFromUrl === "true") {
+      setShowBestSellerOnly(true);
+    } else {
+      setShowBestSellerOnly(false);
+    }
   }, [searchParams]);
 
-  // Tối ưu: Gọi books và categories song song thay vì tuần tự
+  // Tối ưu: Gọi books, categories và orders song song thay vì tuần tự
   const fetchData = async () => {
     setLoading(true);
     try {
-      console.log("🔄 Fetching books and categories...");
-      // Gọi 2 API song song để tối ưu performance
-      const [booksResponse, categoriesResponse] = await Promise.all([
+      console.log("🔄 Fetching books, categories and orders...");
+      // Gọi 3 API song song để tối ưu performance
+      const [booksResponse, categoriesResponse, ordersResponse] = await Promise.all([
         axiosInstance.get("/books"),
         axiosInstance.get("/categories"),
+        axiosInstance.get("/orders").catch(() => ({ data: [] })), // Nếu lỗi thì trả về mảng rỗng
       ]);
       
       console.log(`✅ Loaded ${booksResponse.data.length} books`);
       setBooks(booksResponse.data);
       setCategories(categoriesResponse.data);
+
+      // Tính số lượng đã bán cho mỗi cuốn sách từ orders
+      // Chỉ tính các đơn hàng đã hoàn thành (completed)
+      const salesMap = new Map<number, number>();
+      const ordersData = ordersResponse.data || [];
+      
+      ordersData.forEach((order: any) => {
+        // Chỉ tính các đơn hàng đã hoàn thành
+        const orderStatus = order.status?.toLowerCase() || order.status;
+        if (orderStatus === 'completed' || order.status === 'COMPLETED') {
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach((item: any) => {
+              const bookId = item.bookId;
+              const quantity = item.quantity || 0;
+              
+              if (salesMap.has(bookId)) {
+                salesMap.set(bookId, salesMap.get(bookId)! + quantity);
+              } else {
+                salesMap.set(bookId, quantity);
+              }
+            });
+          }
+        }
+      });
+
+      setBookSalesMap(salesMap);
     } catch (error) {
       console.error("❌ Lỗi khi tải dữ liệu:", error);
     } finally {
@@ -100,11 +138,25 @@ const Books = () => {
   };
 
   // Filter và Pagination
-  const filteredBooks = books.filter((book) => {
-    // Filter theo low stock (sách sắp hết hàng: stock <= 10)
-    if (showLowStockOnly && (book.stock || 0) > 10) {
-      return false;
-    }
+  const filteredBooks = books
+    .map((book) => ({
+      ...book,
+      totalSold: bookSalesMap.get(book.id) || 0, // Thêm totalSold vào mỗi book
+    }))
+    .filter((book) => {
+      // Filter theo low stock (sách sắp hết hàng: stock <= 10)
+      if (showLowStockOnly && (book.stock || 0) > 10) {
+        return false;
+      }
+
+      // Filter theo best seller (sách bán chạy: có số lượng đã bán > 0)
+      // Sắp xếp theo số lượng đã bán giảm dần
+      if (showBestSellerOnly) {
+        const totalSold = book.totalSold || 0;
+        if (totalSold === 0) {
+          return false;
+        }
+      }
 
     // Filter theo search term
     const matchesSearch =
@@ -161,8 +213,16 @@ const Books = () => {
       }
     }
 
-    return matchesSearch && matchesCategory;
-  });
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      // Nếu đang filter best seller, sắp xếp theo số lượng đã bán giảm dần
+      if (showBestSellerOnly) {
+        return (b.totalSold || 0) - (a.totalSold || 0);
+      }
+      // Mặc định giữ nguyên thứ tự
+      return 0;
+    });
 
   const totalPages = Math.ceil(filteredBooks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -205,7 +265,12 @@ const Books = () => {
               const lowStockCount = books.filter((book) => (book.stock || 0) <= 10).length;
               if (lowStockCount > 0) {
                 setShowLowStockOnly(!showLowStockOnly);
-                setSearchParams({ lowStock: !showLowStockOnly ? "true" : "" });
+                setShowBestSellerOnly(false); // Tắt best seller khi bật low stock
+                const newParams = new URLSearchParams();
+                if (!showLowStockOnly) {
+                  newParams.set("lowStock", "true");
+                }
+                setSearchParams(newParams);
                 setCurrentPage(1);
               } else {
                 toast.error("Không có sách sắp hết hàng");
@@ -223,6 +288,44 @@ const Books = () => {
             />
             Sách sắp hết hàng (
             {books.filter((book) => (book.stock || 0) <= 10).length})
+          </button>
+
+          {/* Quick Filter Button - Sách bán chạy */}
+          <button
+            onClick={() => {
+              // Sách bán chạy: có số lượng đã bán > 0
+              const bestSellerCount = books.filter((book) => {
+                const totalSold = bookSalesMap.get(book.id) || 0;
+                return totalSold > 0;
+              }).length;
+              if (bestSellerCount > 0) {
+                setShowBestSellerOnly(!showBestSellerOnly);
+                setShowLowStockOnly(false); // Tắt low stock khi bật best seller
+                const newParams = new URLSearchParams();
+                if (!showBestSellerOnly) {
+                  newParams.set("bestSeller", "true");
+                }
+                setSearchParams(newParams);
+                setCurrentPage(1);
+              } else {
+                toast.error("Không có sách bán chạy");
+              }
+            }}
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap h-10 ${
+              showBestSellerOnly
+                ? "bg-green-100 text-green-800 border-2 border-green-300"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-transparent"
+            }`}
+          >
+            <TrendingUp
+              size={18}
+              className={`mr-2 ${showBestSellerOnly ? "text-green-600" : "text-gray-500"}`}
+            />
+            Sách bán chạy (
+            {books.filter((book) => {
+              const totalSold = bookSalesMap.get(book.id) || 0;
+              return totalSold > 0;
+            }).length})
           </button>
 
           {/* Search Input */}
@@ -296,7 +399,7 @@ const Books = () => {
         </div>
 
         {/* Active Filters Info */}
-        {(selectedCategoryId !== "all" || searchTerm || showLowStockOnly) && (
+        {(selectedCategoryId !== "all" || searchTerm || showLowStockOnly || showBestSellerOnly) && (
           <div className="mt-3 flex flex-wrap gap-2 items-center">
             <span className="text-sm text-gray-600">Bộ lọc đang áp dụng:</span>
             {showLowStockOnly && (
@@ -305,9 +408,27 @@ const Books = () => {
                 <button
                   onClick={() => {
                     setShowLowStockOnly(false);
-                    setSearchParams({});
+                    const newParams = new URLSearchParams(searchParams);
+                    newParams.delete("lowStock");
+                    setSearchParams(newParams);
                   }}
                   className="ml-2 hover:text-orange-900"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {showBestSellerOnly && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Sách bán chạy
+                <button
+                  onClick={() => {
+                    setShowBestSellerOnly(false);
+                    const newParams = new URLSearchParams(searchParams);
+                    newParams.delete("bestSeller");
+                    setSearchParams(newParams);
+                  }}
+                  className="ml-2 hover:text-green-900"
                 >
                   ×
                 </button>
@@ -344,6 +465,7 @@ const Books = () => {
                 setSearchTerm("");
                 setSelectedCategoryId("all");
                 setShowLowStockOnly(false);
+                setShowBestSellerOnly(false);
                 setSearchParams({});
               }}
               className="text-sm text-primary-600 hover:text-primary-800 font-medium"
@@ -373,6 +495,9 @@ const Books = () => {
                   Tồn kho
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Bán ra
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Danh mục
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -384,7 +509,7 @@ const Books = () => {
               {paginatedBooks.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-8 text-center text-gray-500"
                   >
                     Không tìm thấy sách nào
@@ -440,6 +565,11 @@ const Books = () => {
                       >
                         {book.stock} cuốn
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-gray-900">
+                        {book.totalSold || 0} cuốn
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">

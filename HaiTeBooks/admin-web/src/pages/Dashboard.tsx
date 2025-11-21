@@ -148,27 +148,32 @@ const Dashboard = () => {
           >();
 
           // Duyệt qua tất cả orders và items
+          // Chỉ tính các đơn hàng đã hoàn thành (completed) để đồng bộ với Books.tsx
           normalizedOrders.forEach((order: any) => {
-            if (order.items && Array.isArray(order.items)) {
-              order.items.forEach((item: any) => {
-                const bookId = item.bookId;
-                const quantity = item.quantity || 0;
-                const price = item.price || 0;
-                const revenue = quantity * price;
+            // Chỉ tính các đơn hàng đã hoàn thành
+            const orderStatus = order.status?.toLowerCase() || order.status;
+            if (orderStatus === 'completed' || order.status === 'COMPLETED') {
+              if (order.items && Array.isArray(order.items)) {
+                order.items.forEach((item: any) => {
+                  const bookId = item.bookId;
+                  const quantity = item.quantity || 0;
+                  const price = item.price || 0;
+                  const revenue = quantity * price;
 
-                if (bookSalesMap.has(bookId)) {
-                  const existing = bookSalesMap.get(bookId)!;
-                  existing.totalSold += quantity;
-                  existing.revenue += revenue;
-                } else {
-                  bookSalesMap.set(bookId, {
-                    bookId,
-                    bookTitle: item.bookTitle || `Sách #${bookId}`,
-                    totalSold: quantity,
-                    revenue,
-                  });
-                }
-              });
+                  if (bookSalesMap.has(bookId)) {
+                    const existing = bookSalesMap.get(bookId)!;
+                    existing.totalSold += quantity;
+                    existing.revenue += revenue;
+                  } else {
+                    bookSalesMap.set(bookId, {
+                      bookId,
+                      bookTitle: item.bookTitle || `Sách #${bookId}`,
+                      totalSold: quantity,
+                      revenue,
+                    });
+                  }
+                });
+              }
             }
           });
 
@@ -537,9 +542,18 @@ const Dashboard = () => {
       {/* Top Selling Books */}
       {stats?.topSellingBooks && stats.topSellingBooks.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Sách bán chạy
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Sách bán chạy
+            </h2>
+            <Link
+              to="/admin/books?bestSeller=true"
+              className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors"
+            >
+              Xem tất cả
+              <ArrowRight size={16} className="ml-1" />
+            </Link>
+          </div>
           <div className="space-y-3">
             {stats.topSellingBooks.slice(0, 5).map((book, index) => (
               <div
