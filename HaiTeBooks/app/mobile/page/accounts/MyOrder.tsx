@@ -53,9 +53,8 @@ const MyOrder: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewedOrderIds, setViewedOrderIds] = useState<Set<number>>(new Set());
 
-  // Load user và viewed order IDs
+  // Load user
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -69,19 +68,6 @@ const MyOrder: React.FC = () => {
       }
     };
     loadUser();
-
-    const loadViewedOrders = async () => {
-      try {
-        const viewedData = await AsyncStorage.getItem("viewed_order_ids");
-        if (viewedData) {
-          const viewedIds = JSON.parse(viewedData);
-          setViewedOrderIds(new Set(viewedIds));
-        }
-      } catch (error) {
-        console.error("Error loading viewed orders:", error);
-      }
-    };
-    loadViewedOrders();
   }, []);
 
   // Fetch orders
@@ -119,16 +105,6 @@ const MyOrder: React.FC = () => {
       });
 
       setOrders(sortedOrders);
-
-      // ✅ CHỈ reload viewedOrderIds, KHÔNG mark tất cả orders là viewed
-      // Orders chỉ được mark là viewed khi user click vào chúng
-      const viewedData = await AsyncStorage.getItem("viewed_order_ids");
-      if (viewedData) {
-        const viewedIds: number[] = JSON.parse(viewedData);
-        setViewedOrderIds(new Set(viewedIds));
-      } else {
-        setViewedOrderIds(new Set());
-      }
     } catch (error: any) {
       const status = error?.response?.status;
       console.error("❌ Error fetching orders:", {
@@ -199,9 +175,6 @@ const MyOrder: React.FC = () => {
     CANCELLED: orders.filter((o) => o.status === "CANCELLED").length,
   };
 
-  // Check if order is unviewed
-  const isUnviewed = (orderId: number) => !viewedOrderIds.has(orderId);
-
   // Handle tab press
   const handleTabPress = (status: OrderStatus | "ALL") => {
     if (status === "ALL") {
@@ -251,24 +224,30 @@ const MyOrder: React.FC = () => {
   };
 
   const renderOrderItem = ({ item }: { item: Order }) => {
-    const unviewed = isUnviewed(item.id);
     return (
       <TouchableOpacity
-        style={[styles.orderCard, unviewed && styles.orderCardUnviewed]}
+        style={styles.orderCard}
         activeOpacity={0.7}
         onPress={() => {
-          // Mark as viewed
-          const newViewedIds = [...viewedOrderIds, item.id];
-          setViewedOrderIds(new Set(newViewedIds));
-          AsyncStorage.setItem(
-            "viewed_order_ids",
-            JSON.stringify([...newViewedIds])
-          );
+          // Mark as viewed (for badge count in Account.tsx)
+          AsyncStorage.getItem("viewed_order_ids")
+            .then((viewedData) => {
+              const viewedIds: number[] = viewedData
+                ? JSON.parse(viewedData)
+                : [];
+              if (!viewedIds.includes(item.id)) {
+                viewedIds.push(item.id);
+                AsyncStorage.setItem(
+                  "viewed_order_ids",
+                  JSON.stringify(viewedIds)
+                );
+              }
+            })
+            .catch(() => {});
 
           router.push(`/mobile/page/accounts/OrderDetail?id=${item.id}`);
         }}
       >
-        {unviewed && <View style={styles.unviewedDot} />}
         <View style={styles.orderHeader}>
           <View>
             <Text style={styles.orderId}>Đơn hàng #{item.id}</Text>
@@ -501,28 +480,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    position: "relative",
-  },
-  orderCardUnviewed: {
-    backgroundColor: "#FEF3C7",
-    borderWidth: 2,
-    borderColor: "#F59E0B",
-  },
-  unviewedDot: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#C92127",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1,
-    elevation: 2,
   },
   orderHeader: {
     flexDirection: "row",

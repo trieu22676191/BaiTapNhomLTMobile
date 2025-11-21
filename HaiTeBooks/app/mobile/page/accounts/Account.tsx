@@ -624,54 +624,6 @@ const Account: React.FC = () => {
               </View>
               <Text style={styles.orderLabel}>Đang giao</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.orderItem}
-              onPress={() =>
-                router.push("/mobile/page/accounts/MyOrder?status=COMPLETED")
-              }
-            >
-              <View style={styles.orderIcon}>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={24}
-                  color="#111827"
-                />
-                {orderCounts.completed > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.completed > 99
-                        ? "99+"
-                        : orderCounts.completed}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.orderLabel}>Hoàn tất</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.orderItem}
-              onPress={() =>
-                router.push("/mobile/page/accounts/MyOrder?status=CANCELLED")
-              }
-            >
-              <View style={styles.orderIcon}>
-                <Ionicons
-                  name="close-circle-outline"
-                  size={24}
-                  color="#111827"
-                />
-                {orderCounts.cancelled > 0 && (
-                  <View style={styles.orderBadge}>
-                    <Text style={styles.orderBadgeText}>
-                      {orderCounts.cancelled > 99
-                        ? "99+"
-                        : orderCounts.cancelled}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.orderLabel}>Đã huỷ</Text>
-            </TouchableOpacity>
           </View>
         </TouchableOpacity>
         <View style={styles.menuSection}>
