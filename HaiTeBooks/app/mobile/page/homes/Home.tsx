@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import BannerSale from "../../components/home/BannerSale";
 import ProductCard from "../../components/home/ProductCard";
@@ -6,6 +7,18 @@ import ProductCard from "../../components/home/ProductCard";
 const Home: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+  const params = useLocalSearchParams<{ refresh?: string }>();
+
+  // Reload khi có refresh param (khi nhấn lại tab)
+  useEffect(() => {
+    if (params.refresh) {
+      setRefreshing(true);
+      setRefreshTrigger((prev) => prev + 1);
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 1000);
+    }
+  }, [params.refresh]);
 
   // ⭐ Pull-to-Refresh handler
   const onRefresh = () => {

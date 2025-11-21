@@ -31,25 +31,42 @@ const BotTabs: React.FC<BotTabsProps> = ({
   const { unreadCount, refreshUnreadCount } = useNotification();
 
   const handleTabPress = (tab: TabType) => {
-    // Chỉ navigate khi route hiện tại khác với route mục tiêu
+    const refreshParam = `?refresh=${Date.now()}`;
+    
+    // Nếu đang ở tab đó, reload bằng cách thêm refresh param
     if (tab === "account") {
-      if (pathname !== "/account") {
+      if (pathname === "/account" || (pathname.startsWith("/mobile/page/accounts/") && !pathname.includes("/Chatbot"))) {
+        // Đang ở account tab, reload
+        router.replace(`/account${refreshParam}`);
+      } else {
         router.replace("/account");
       }
     } else if (tab === "home") {
-      if (pathname !== "/") {
+      if (pathname === "/") {
+        // Đang ở home tab, reload
+        router.replace(`/${refreshParam}`);
+      } else {
         router.replace("/");
       }
     } else if (tab === "cart") {
-      if (pathname !== "/mobile/page/carts/Cart") {
+      if (pathname === "/mobile/page/carts/Cart" || pathname === "/cart") {
+        // Đang ở cart tab, reload
+        router.replace(`/mobile/page/carts/Cart${refreshParam}`);
+      } else {
         router.replace("/mobile/page/carts/Cart");
       }
     } else if (tab === "suggestions") {
-      if (pathname !== "/mobile/page/suggestions/Suggestion") {
+      if (pathname === "/mobile/page/suggestions/Suggestion") {
+        // Đang ở suggestions tab, reload
+        router.replace(`/mobile/page/suggestions/Suggestion${refreshParam}`);
+      } else {
         router.replace("/mobile/page/suggestions/Suggestion");
       }
     } else if (tab === "notifications") {
-      if (pathname !== "/mobile/page/notifications/Notification") {
+      if (pathname === "/mobile/page/notifications/Notification") {
+        // Đang ở notifications tab, reload
+        router.replace(`/mobile/page/notifications/Notification${refreshParam}`);
+      } else {
         router.replace("/mobile/page/notifications/Notification");
       }
     }

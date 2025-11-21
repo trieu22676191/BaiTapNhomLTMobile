@@ -53,7 +53,11 @@ const Account: React.FC = () => {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [voucherCount, setVoucherCount] = useState(0);
   const [viewedOrderIds, setViewedOrderIds] = useState<Set<number>>(new Set());
-  const params = useLocalSearchParams<{ next?: string; bookId?: string }>();
+  const params = useLocalSearchParams<{
+    next?: string;
+    bookId?: string;
+    refresh?: string;
+  }>();
 
   // Rehydrate session when Account mounts
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
-import React, { useRef, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -38,6 +39,17 @@ const Suggestion: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Book[]>([]);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ refresh?: string; searchQuery?: string }>();
+
+  // Reload khi có refresh param (khi nhấn lại tab)
+  useEffect(() => {
+    if (params.refresh) {
+      // Clear search và reset
+      setSearchQuery("");
+      setSearchResults([]);
+      setSearchError(null);
+    }
+  }, [params.refresh]);
 
   const [showBookDetail, setShowBookDetail] = useState(false);
   const [selectedBookDetailId, setSelectedBookDetailId] = useState<

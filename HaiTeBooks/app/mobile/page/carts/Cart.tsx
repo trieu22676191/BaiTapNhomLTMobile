@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -50,6 +50,14 @@ const Cart: React.FC = () => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<number | null>(null);
+  const params = useLocalSearchParams<{ refresh?: string }>();
+
+  // Reload khi có refresh param (khi nhấn lại tab)
+  useEffect(() => {
+    if (params.refresh) {
+      fetchCart();
+    }
+  }, [params.refresh]);
 
   // Fetch cart từ backend - chỉ gọi khi cần
   const fetchCart = useCallback(async () => {
