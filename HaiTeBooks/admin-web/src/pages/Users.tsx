@@ -65,7 +65,7 @@ const Users = () => {
             role_id: user.role_id,
             username: user.username,
           });
-          // Xử lý role - backend có thể trả về role object hoặc role_id
+          // Xử lý role - backend có thể trả về role object, role string, hoặc role_id
           let roleObj;
           
           // Hàm helper để normalize role name
@@ -81,12 +81,21 @@ const Users = () => {
               .trim();
           };
           
-          if (user.role) {
+          // Kiểm tra xem role là object hay string
+          if (user.role && typeof user.role === "object" && user.role !== null) {
             // Backend trả về role object
             const roleName = normalizeRoleName(user.role.name || user.role);
             const isAdmin = roleName === "admin";
             roleObj = {
               id: user.role.id || (isAdmin ? 1 : 2),
+              name: isAdmin ? "admin" : "user",
+            };
+          } else if (user.role && typeof user.role === "string") {
+            // Backend trả về role là string (ví dụ: "ADMIN", "admin", "ROLE_ADMIN")
+            const roleName = normalizeRoleName(user.role);
+            const isAdmin = roleName === "admin";
+            roleObj = {
+              id: isAdmin ? 1 : 2,
               name: isAdmin ? "admin" : "user",
             };
           } else if (user.role_id !== undefined && user.role_id !== null) {
