@@ -82,32 +82,41 @@ const Users = () => {
           };
           
           // Kiểm tra xem role là object hay string
+          console.log(`🔍 User ${user.id} - role type:`, typeof user.role, "value:", user.role);
+          
           if (user.role && typeof user.role === "object" && user.role !== null) {
             // Backend trả về role object
+            console.log(`  → Processing as object:`, user.role);
             const roleName = normalizeRoleName(user.role.name || user.role);
             const isAdmin = roleName === "admin";
             roleObj = {
               id: user.role.id || (isAdmin ? 1 : 2),
               name: isAdmin ? "admin" : "user",
             };
+            console.log(`  → Normalized role object:`, roleObj);
           } else if (user.role && typeof user.role === "string") {
             // Backend trả về role là string (ví dụ: "ADMIN", "admin", "ROLE_ADMIN")
+            console.log(`  → Processing as string: "${user.role}"`);
             const roleName = normalizeRoleName(user.role);
             const isAdmin = roleName === "admin";
             roleObj = {
               id: isAdmin ? 1 : 2,
               name: isAdmin ? "admin" : "user",
             };
+            console.log(`  → Normalized role from string:`, roleObj);
           } else if (user.role_id !== undefined && user.role_id !== null) {
             // Backend trả về role_id (string hoặc number)
+            console.log(`  → Processing role_id:`, user.role_id);
             const roleName = normalizeRoleName(user.role_id);
             const isAdmin = roleName === "admin" || user.role_id === 1 || user.role_id === "1";
             roleObj = {
               id: isAdmin ? 1 : 2,
               name: isAdmin ? "admin" : "user",
             };
+            console.log(`  → Normalized role from role_id:`, roleObj);
           } else {
             // Mặc định là user
+            console.log(`  → No role found, defaulting to user`);
             roleObj = {
               id: 2,
               name: "user",
