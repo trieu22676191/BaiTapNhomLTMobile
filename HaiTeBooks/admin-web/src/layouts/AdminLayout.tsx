@@ -86,11 +86,11 @@ const AdminLayout = () => {
           <div className="border-t px-4 py-4">
             <div className="flex items-center mb-3">
               <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-semibold">
-                {user?.full_name?.[0] || user?.username?.[0] || 'A'}
+                {user?.fullName?.[0] || user?.username?.[0] || 'A'}
               </div>
               <div className="ml-3 flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">
-                  {user?.full_name || user?.username}
+                  {user?.fullName || user?.username}
                 </p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>

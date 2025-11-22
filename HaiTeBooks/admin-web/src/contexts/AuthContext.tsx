@@ -51,14 +51,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log("🔍 API User keys:", Object.keys(apiUser || {}));
           
           // Normalize user object từ API response
-          const normalizedUser = {
+          const roleName = (apiUser?.role?.name || apiUser?.role || "user").toString().toLowerCase().replace("role_", "");
+          const normalizedUser: User = {
             id: apiUser?.id || apiUser?.userId,
             username: apiUser?.username || "",
             email: apiUser?.email || "",
-            full_name: apiUser?.fullName || apiUser?.full_name || apiUser?.username || "",
+            fullName: apiUser?.fullName || apiUser?.full_name || apiUser?.username || "",
             phone: apiUser?.phone || "",
             address: apiUser?.address || "",
-            role_id: (apiUser?.role?.name || apiUser?.role || "user").toString().toLowerCase().replace("role_", "") as "admin" | "user",
+            enabled: apiUser?.enabled ?? true,
+            role: {
+              id: apiUser?.role?.id || (roleName === "admin" ? 1 : 2),
+              name: apiUser?.role?.name || roleName,
+            },
           };
 
           console.log("✅ Normalized User:", JSON.stringify(normalizedUser, null, 2));
@@ -127,14 +132,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.warn("⚠️ Role check đã tắt tạm thời! Role hiện tại:", userRole);
 
       // Tạo user object chuẩn
-      const normalizedUser = {
+      const roleNameLower = userRole.toLowerCase();
+      const normalizedUser: User = {
         id: userData.id || userData.userId,
         username: userData.username,
         email: userData.email || "",
-        full_name: userData.full_name || userData.fullName || userData.username,
+        fullName: userData.fullName || userData.full_name || userData.username,
         phone: userData.phone || "",
         address: userData.address || "",
-        role_id: userRole.toLowerCase() as "admin" | "user",
+        enabled: userData.enabled ?? true,
+        role: {
+          id: userData.role?.id || (roleNameLower === "admin" ? 1 : 2),
+          name: userData.role?.name || roleNameLower,
+        },
       };
 
       console.log("✅ Normalized User:", normalizedUser);
