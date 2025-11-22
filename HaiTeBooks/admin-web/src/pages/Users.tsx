@@ -54,8 +54,80 @@ const Users = () => {
       const response = await axiosInstance.get("/admin/users");
 
       if (response.data && Array.isArray(response.data)) {
-        setUsers(response.data);
-        console.log("Users loaded:", response.data);
+        // Debug: Log raw data từ backend
+        console.log("🔍 Raw users data from API:", JSON.stringify(response.data, null, 2));
+        
+        // Normalize user data từ API response
+        const normalizedUsers: User[] = response.data.map((user: any) => {
+          // Debug: Log từng user để xem format
+          console.log(`🔍 User ${user.id} raw data:`, {
+            role: user.role,
+            role_id: user.role_id,
+            username: user.username,
+          });
+          // Xử lý role - backend có thể trả về role object hoặc role_id
+          let roleObj;
+          
+          // Hàm helper để normalize role name
+          const normalizeRoleName = (roleValue: any): string => {
+            if (!roleValue) return "user";
+            const roleStr = typeof roleValue === "string" 
+              ? roleValue 
+              : roleValue.toString();
+            // Xử lý các format: "ROLE_ADMIN", "ADMIN", "admin", "role_admin"
+            return roleStr
+              .toLowerCase()
+              .replace(/^role_/, "")
+              .trim();
+          };
+          
+          if (user.role) {
+            // Backend trả về role object
+            const roleName = normalizeRoleName(user.role.name || user.role);
+            const isAdmin = roleName === "admin";
+            roleObj = {
+              id: user.role.id || (isAdmin ? 1 : 2),
+              name: isAdmin ? "admin" : "user",
+            };
+          } else if (user.role_id !== undefined && user.role_id !== null) {
+            // Backend trả về role_id (string hoặc number)
+            const roleName = normalizeRoleName(user.role_id);
+            const isAdmin = roleName === "admin" || user.role_id === 1 || user.role_id === "1";
+            roleObj = {
+              id: isAdmin ? 1 : 2,
+              name: isAdmin ? "admin" : "user",
+            };
+          } else {
+            // Mặc định là user
+            roleObj = {
+              id: 2,
+              name: "user",
+            };
+          }
+
+          const normalizedUser = {
+            id: user.id,
+            username: user.username || "",
+            email: user.email || "",
+            fullName: user.fullName || user.full_name || user.username || "",
+            phone: user.phone || "",
+            address: user.address || "",
+            enabled: user.enabled ?? true,
+            role: roleObj,
+            createdAt: user.createdAt || user.created_at,
+          };
+          
+          // Debug: Log normalized user
+          console.log(`✅ User ${normalizedUser.id} normalized:`, {
+            username: normalizedUser.username,
+            role: normalizedUser.role,
+          });
+          
+          return normalizedUser;
+        });
+        
+        setUsers(normalizedUsers);
+        console.log("✅ All users normalized:", normalizedUsers);
       } else {
         throw new Error("Dữ liệu không hợp lệ từ server");
       }
