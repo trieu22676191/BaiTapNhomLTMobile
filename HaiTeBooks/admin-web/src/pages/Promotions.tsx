@@ -2,24 +2,26 @@ import {
   Calendar,
   CheckCircle2,
   Edit,
+  Filter,
   Hash,
-  Percent,
   Plus,
   PowerOff,
-  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import ConfirmDialog from "../components/ConfirmDialog";
 import axiosInstance from "../config/axios";
 import { useAuth } from "../contexts/AuthContext";
 import { Promotion } from "../types";
-import ConfirmDialog from "../components/ConfirmDialog";
 
 const Promotions = () => {
   const { user } = useAuth();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "approved" | "deactivated"
+  >("all");
   const [showModal, setShowModal] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(
     null
@@ -72,11 +74,8 @@ const Promotions = () => {
 
   const fetchPromotions = async () => {
     try {
-      console.log("🔄 Fetching promotions...");
       const response = await axiosInstance.get("/promotions");
-      console.log("✅ Promotions loaded:", response.data);
       const rawData = response.data || [];
-      console.log("📊 Raw promotions data:", JSON.stringify(rawData, null, 2));
 
       // Normalize data từ backend (backend có thể trả về active/approvedBy thay vì isActive/approvedByUserId)
       const promotionsData: Promotion[] = rawData.map((promo: any) => ({
@@ -101,23 +100,8 @@ const Promotions = () => {
         createdAt: promo.createdAt,
       }));
 
-      // Log từng promotion sau khi normalize
-      promotionsData.forEach((promo: Promotion) => {
-        console.log(`📌 Promotion ${promo.id} (normalized):`, {
-          id: promo.id,
-          code: promo.code,
-          isActive: promo.isActive,
-          approvedByUserId: promo.approvedByUserId,
-          status: promo.status,
-          currentStatus: getCurrentStatus(promo),
-        });
-      });
-
       setPromotions(promotionsData);
     } catch (error: any) {
-      console.error("❌ Lỗi khi tải khuyến mãi:", error);
-      console.error("❌ Error status:", error?.response?.status);
-      console.error("❌ Error data:", error?.response?.data);
       setPromotions([]);
       // Không hiển thị alert để tránh spam khi load trang
     } finally {
@@ -128,42 +112,26 @@ const Promotions = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log("🚀 Form submitted");
-    console.log("📝 Form data:", formData);
-    console.log("👤 User:", user);
-    console.log("👤 User ID:", user?.id);
-    console.log("👤 User keys:", user ? Object.keys(user) : "null");
-
     // Kiểm tra user ID với nhiều fallback
     const userId = user?.id || (user as any)?.userId || (user as any)?.user_id;
 
     if (!userId) {
-      console.error("❌ User ID không tồn tại:", {
-        user,
-        id: user?.id,
-        userId: (user as any)?.userId,
-        user_id: (user as any)?.user_id,
-      });
-      toast.error("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+      toast.error(
+        "Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại."
+      );
       return;
     }
-
-    console.log("✅ User ID found:", userId);
 
     setSubmitting(true);
 
     try {
-      console.log("✅ Validation started");
-
       // Validate form
       if (!formData.name.trim()) {
-        console.log("❌ Validation failed: name is empty");
         toast.error("Vui lòng nhập tên khuyến mãi");
         setSubmitting(false);
         return;
       }
       if (!formData.code.trim()) {
-        console.log("❌ Validation failed: code is empty");
         toast.error("Vui lòng nhập mã khuyến mãi");
         setSubmitting(false);
         return;
@@ -173,40 +141,25 @@ const Promotions = () => {
         formData.discountPercent <= 0 ||
         formData.discountPercent > 100
       ) {
-        console.log(
-          "❌ Validation failed: discountPercent invalid",
-          formData.discountPercent
-        );
         toast.error("Vui lòng nhập phần trăm giảm giá từ 1 đến 100");
         setSubmitting(false);
         return;
       }
       if (!formData.startDate || !formData.endDate) {
-        console.log("❌ Validation failed: dates missing", {
-          startDate: formData.startDate,
-          endDate: formData.endDate,
-        });
         toast.error("Vui lòng chọn ngày bắt đầu và kết thúc");
         setSubmitting(false);
         return;
       }
       if (new Date(formData.startDate) >= new Date(formData.endDate)) {
-        console.log("❌ Validation failed: endDate must be after startDate");
         toast.error("Ngày kết thúc phải sau ngày bắt đầu");
         setSubmitting(false);
         return;
       }
       if (!formData.quantity || formData.quantity <= 0) {
-        console.log(
-          "❌ Validation failed: quantity invalid",
-          formData.quantity
-        );
         toast.error("Vui lòng nhập số lượng lớn hơn 0");
         setSubmitting(false);
         return;
       }
-
-      console.log("✅ All validations passed");
 
       // Đảm bảo format date đúng (YYYY-MM-DD)
       const startDate = formData.startDate.split("T")[0]; // Lấy phần date nếu có time
@@ -233,43 +186,21 @@ const Promotions = () => {
             : Number(formData.maxDiscountAmount) || null,
       };
 
-      console.log(
-        "📦 Sending promotion data:",
-        JSON.stringify(promotionData, null, 2)
-      );
-      console.log("👤 User ID:", userId);
-
       try {
         if (editingPromotion) {
           // Update existing promotion
-          console.log("🔄 Updating promotion:", editingPromotion.id);
-          console.log(
-            "🔗 URL:",
-            `/api/promotions/update/${editingPromotion.id}`
-          );
-          console.log(
-            "📦 Update data:",
-            JSON.stringify(promotionData, null, 2)
-          );
-
-          const response = await axiosInstance.put(
+          await axiosInstance.put(
             `/promotions/update/${editingPromotion.id}`,
             promotionData
           );
 
-          console.log("✅ Update response:", response.data);
-          console.log("✅ Promotion updated successfully!");
           toast.success("Cập nhật khuyến mãi thành công!");
         } else {
           // Create new promotion
-          console.log("🔗 URL:", `/promotions/create/${userId}`);
           const response = await axiosInstance.post(
             `/promotions/create/${userId}`,
             promotionData
           );
-
-          console.log("✅ Response:", response.data);
-          console.log("✅ Promotion created successfully!");
 
           // Tự động approve nếu user là admin
           const createdPromotion = response.data;
@@ -277,13 +208,10 @@ const Promotions = () => {
             (user as any)?.role_id || user?.role?.name?.toLowerCase() || "";
           if (createdPromotion?.id && userRole === "admin") {
             try {
-              console.log("🔄 Auto-approving promotion...");
               await axiosInstance.put(
                 `/promotions/approve/${createdPromotion.id}/${userId}`
               );
-              console.log("✅ Promotion auto-approved!");
             } catch (approveError: any) {
-              console.error("⚠️ Failed to auto-approve:", approveError);
               // Không throw error, chỉ log vì promotion đã được tạo thành công
             }
           }
@@ -294,22 +222,10 @@ const Promotions = () => {
         fetchPromotions();
         handleCloseModal();
       } catch (apiError: any) {
-        console.error("❌ API Error:", apiError);
         throw apiError; // Re-throw để catch block xử lý
       }
     } catch (error: any) {
       const isUpdate = !!editingPromotion;
-      console.error(
-        `❌ Lỗi khi ${isUpdate ? "cập nhật" : "tạo"} khuyến mãi:`,
-        error
-      );
-      console.error("❌ Error status:", error?.response?.status);
-      console.error("❌ Error data:", error?.response?.data);
-      console.error("❌ Error message:", error?.message);
-      console.error(
-        "❌ Full error:",
-        JSON.stringify(error?.response?.data, null, 2)
-      );
 
       const errorMessage =
         error?.response?.data?.message ||
@@ -346,41 +262,8 @@ const Promotions = () => {
       toast.success("Duyệt khuyến mãi thành công!");
       fetchPromotions();
     } catch (error: any) {
-      console.error("Lỗi khi duyệt khuyến mãi:", error);
       const errorMessage =
         error?.response?.data?.message || "Có lỗi xảy ra khi duyệt khuyến mãi!";
-      toast.error(errorMessage);
-    }
-  };
-
-  const handleReject = (promotionId: number) => {
-    if (!user?.id) {
-      toast.error("Không tìm thấy thông tin người dùng");
-      return;
-    }
-
-    setConfirmDialog({
-      isOpen: true,
-      title: "Xác nhận từ chối khuyến mãi",
-      message: "Bạn có chắc chắn muốn từ chối khuyến mãi này?",
-      type: "warning",
-      onConfirm: () => {
-        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-        performReject(promotionId);
-      },
-    });
-  };
-
-  const performReject = async (promotionId: number) => {
-    try {
-      await axiosInstance.put(`/promotions/reject/${promotionId}/${user?.id}`);
-      toast.success("Từ chối khuyến mãi thành công!");
-      fetchPromotions();
-    } catch (error: any) {
-      console.error("Lỗi khi từ chối khuyến mãi:", error);
-      const errorMessage =
-        error?.response?.data?.message ||
-        "Có lỗi xảy ra khi từ chối khuyến mãi!";
       toast.error(errorMessage);
     }
   };
@@ -411,7 +294,6 @@ const Promotions = () => {
       toast.success("Vô hiệu hóa khuyến mãi thành công!");
       fetchPromotions();
     } catch (error: any) {
-      console.error("Lỗi khi vô hiệu hóa khuyến mãi:", error);
       const errorMessage =
         error?.response?.data?.message ||
         "Có lỗi xảy ra khi vô hiệu hóa khuyến mãi!";
@@ -487,6 +369,11 @@ const Promotions = () => {
       return;
     }
 
+    // Chỉ xử lý approved và deactivated
+    if (newStatus !== "approved" && newStatus !== "deactivated") {
+      return;
+    }
+
     // Hiển thị confirm dialog dựa trên action
     let confirmMessage = "";
     let confirmTitle = "";
@@ -496,18 +383,10 @@ const Promotions = () => {
       confirmTitle = "Xác nhận duyệt khuyến mãi";
       confirmMessage = "Bạn có chắc chắn muốn duyệt khuyến mãi này?";
       confirmType = "info";
-    } else if (newStatus === "rejected") {
-      confirmTitle = "Xác nhận từ chối khuyến mãi";
-      confirmMessage = "Bạn có chắc chắn muốn từ chối khuyến mãi này?";
-      confirmType = "warning";
     } else if (newStatus === "deactivated") {
       confirmTitle = "Xác nhận vô hiệu hóa khuyến mãi";
       confirmMessage = "Bạn có chắc chắn muốn vô hiệu hóa khuyến mãi này?";
       confirmType = "danger";
-    } else if (newStatus === "pending") {
-      confirmTitle = "Xác nhận chuyển trạng thái";
-      confirmMessage = "Bạn có chắc chắn muốn chuyển khuyến mãi về trạng thái chờ duyệt?";
-      confirmType = "warning";
     }
 
     if (confirmMessage) {
@@ -525,46 +404,40 @@ const Promotions = () => {
     }
   };
 
-  const performStatusChange = async (promotionId: number, newStatus: string, userId: number) => {
+  const performStatusChange = async (
+    promotionId: number,
+    newStatus: string,
+    userId: number
+  ) => {
     try {
       if (newStatus === "approved") {
-        console.log(`🔄 Approving promotion ${promotionId}...`);
-        const response = await axiosInstance.put(
-          `/promotions/approve/${promotionId}/${userId}`
-        );
-        console.log("✅ Approve response:", response.data);
+        // Tìm promotion hiện tại để kiểm tra trạng thái
+        const currentPromotion = promotions.find((p) => p.id === promotionId);
+        const currentStatus = currentPromotion
+          ? getCurrentStatus(currentPromotion)
+          : "";
+
+        // Nếu promotion đã bị vô hiệu hóa, không thể kích hoạt lại
+        if (currentStatus === "deactivated") {
+          toast.error("Khuyến mãi hết hiệu lực không thể mở lại");
+          return;
+        }
+
+        // Nếu chưa được approve (pending) hoặc chưa có approvedByUserId
+        // → Dùng endpoint approve
+        await axiosInstance.put(`/promotions/approve/${promotionId}/${userId}`);
         toast.success("Duyệt khuyến mãi thành công!");
-      } else if (newStatus === "rejected") {
-        console.log(`🔄 Rejecting promotion ${promotionId}...`);
-        const response = await axiosInstance.put(
-          `/promotions/reject/${promotionId}/${userId}`
-        );
-        console.log("✅ Reject response:", response.data);
-        toast.success("Từ chối khuyến mãi thành công!");
       } else if (newStatus === "deactivated") {
-        console.log(`🔄 Deactivating promotion ${promotionId}...`);
-        const response = await axiosInstance.put(
+        await axiosInstance.put(
           `/promotions/deactivate/${promotionId}/${userId}`
         );
-        console.log("✅ Deactivate response:", response.data);
         toast.success("Vô hiệu hóa khuyến mãi thành công!");
-      } else if (newStatus === "pending") {
-        // Note: Backend có thể cần thêm endpoint để reactivate
-        // Tạm thời chỉ thông báo
-        toast.error(
-          "Tính năng này đang được phát triển. Vui lòng sử dụng các nút thao tác."
-        );
-        return;
       }
 
       // Đợi một chút để backend xử lý xong, sau đó refresh
       await new Promise((resolve) => setTimeout(resolve, 300));
-      console.log("🔄 Refreshing promotions list...");
       await fetchPromotions();
-      console.log("✅ Promotions refreshed");
     } catch (error: any) {
-      console.error("❌ Lỗi khi thay đổi trạng thái:", error);
-      console.error("❌ Error response:", error?.response?.data);
       const errorMessage =
         error?.response?.data?.message ||
         error?.response?.data?.error ||
@@ -576,15 +449,46 @@ const Promotions = () => {
     }
   };
 
+  // Filter promotions theo status
+  const filteredPromotions = promotions.filter((promotion) => {
+    const currentStatus = getCurrentStatus(promotion);
+    // Chỉ hiển thị approved và deactivated, pending/rejected coi như deactivated
+    if (statusFilter === "all") {
+      return true;
+    } else if (statusFilter === "approved") {
+      return currentStatus === "approved";
+    } else if (statusFilter === "deactivated") {
+      return (
+        currentStatus === "deactivated" ||
+        currentStatus === "pending" ||
+        currentStatus === "rejected"
+      );
+    }
+    return false;
+  });
+
+  // Đếm số lượng promotions theo status
+  const approvedCount = promotions.filter(
+    (p) => getCurrentStatus(p) === "approved"
+  ).length;
+  const deactivatedCount = promotions.filter((p) => {
+    const status = getCurrentStatus(p);
+    return (
+      status === "deactivated" || status === "pending" || status === "rejected"
+    );
+  }).length;
+
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     try {
       // Backend trả về LocalDateTime không có timezone
       // Parse trực tiếp và format theo "DD/MM/YYYY" - không convert timezone
-      const hasTimezone = dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString);
-      const date = !hasTimezone && dateString.includes("T") 
-        ? new Date(dateString) 
-        : new Date(dateString);
+      const hasTimezone =
+        dateString.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateString);
+      const date =
+        !hasTimezone && dateString.includes("T")
+          ? new Date(dateString)
+          : new Date(dateString);
       if (isNaN(date.getTime())) return "N/A";
       const day = String(date.getDate()).padStart(2, "0");
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -613,6 +517,15 @@ const Promotions = () => {
           </h1>
           <p className="text-gray-600 mt-1">
             Tổng số: {promotions.length} khuyến mãi
+            {statusFilter !== "all" && (
+              <span className="ml-2">
+                ({filteredPromotions.length}{" "}
+                {statusFilter === "approved"
+                  ? "đang hoạt động"
+                  : "đã vô hiệu hóa"}
+                )
+              </span>
+            )}
           </p>
         </div>
         <button
@@ -622,6 +535,68 @@ const Promotions = () => {
           <Plus size={20} className="mr-2" />
           Tạo khuyến mãi
         </button>
+      </div>
+
+      {/* Status Filter */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">
+              Lọc theo trạng thái:
+            </span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setStatusFilter("all")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === "all"
+                  ? "bg-primary-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Tất cả ({promotions.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter("approved")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${
+                statusFilter === "approved"
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              style={
+                statusFilter === "approved"
+                  ? {}
+                  : {
+                      backgroundColor: "#D1FAE5",
+                      color: "#065F46",
+                    }
+              }
+            >
+              <CheckCircle2 size={16} />
+              Đang hoạt động ({approvedCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter("deactivated")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${
+                statusFilter === "deactivated"
+                  ? "bg-gray-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              style={
+                statusFilter === "deactivated"
+                  ? {}
+                  : {
+                      backgroundColor: "#F3F4F6",
+                      color: "#374151",
+                    }
+              }
+            >
+              <PowerOff size={16} />
+              Đã vô hiệu hóa ({deactivatedCount})
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Promotions Table */}
@@ -657,17 +632,23 @@ const Promotions = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {promotions.length === 0 ? (
+              {filteredPromotions.length === 0 ? (
                 <tr>
                   <td
                     colSpan={8}
                     className="px-6 py-8 text-center text-gray-500"
                   >
-                    Chưa có khuyến mãi nào
+                    {promotions.length === 0
+                      ? "Chưa có khuyến mãi nào"
+                      : `Không có khuyến mãi nào với trạng thái "${
+                          statusFilter === "approved"
+                            ? "đang hoạt động"
+                            : "đã vô hiệu hóa"
+                        }"`}
                   </td>
                 </tr>
               ) : (
-                promotions.map((promotion) => (
+                filteredPromotions.map((promotion) => (
                   <tr key={promotion.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -684,7 +665,6 @@ const Promotions = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-primary-600 font-semibold">
-                        <Percent size={16} className="mr-1" />
                         {promotion.discountPercent}%
                       </div>
                     </td>
@@ -712,32 +692,40 @@ const Promotions = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
-                        value={getCurrentStatus(promotion)}
+                        value={
+                          getCurrentStatus(promotion) === "pending" ||
+                          getCurrentStatus(promotion) === "rejected"
+                            ? "deactivated"
+                            : getCurrentStatus(promotion)
+                        }
                         onChange={(e) =>
                           handleStatusChange(promotion.id, e.target.value)
                         }
                         className="text-xs font-semibold rounded-full px-3 py-1.5 border-0 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-colors appearance-none bg-no-repeat bg-right pr-8"
                         style={{
                           backgroundColor: getStatusColor(
-                            getCurrentStatus(promotion)
+                            getCurrentStatus(promotion) === "pending" ||
+                              getCurrentStatus(promotion) === "rejected"
+                              ? "deactivated"
+                              : getCurrentStatus(promotion)
                           ).bg,
-                          color: getStatusColor(getCurrentStatus(promotion))
-                            .text,
+                          color: getStatusColor(
+                            getCurrentStatus(promotion) === "pending" ||
+                              getCurrentStatus(promotion) === "rejected"
+                              ? "deactivated"
+                              : getCurrentStatus(promotion)
+                          ).text,
                           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${encodeURIComponent(
-                            getStatusColor(getCurrentStatus(promotion)).text
+                            getStatusColor(
+                              getCurrentStatus(promotion) === "pending" ||
+                                getCurrentStatus(promotion) === "rejected"
+                                ? "deactivated"
+                                : getCurrentStatus(promotion)
+                            ).text
                           )}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
                           backgroundPosition: "right 0.5rem center",
                         }}
                       >
-                        <option
-                          value="pending"
-                          style={{
-                            backgroundColor: "#FEF3C7",
-                            color: "#92400E",
-                          }}
-                        >
-                          Chờ duyệt
-                        </option>
                         <option
                           value="approved"
                           style={{
@@ -746,15 +734,6 @@ const Promotions = () => {
                           }}
                         >
                           Đang hoạt động
-                        </option>
-                        <option
-                          value="rejected"
-                          style={{
-                            backgroundColor: "#FEE2E2",
-                            color: "#991B1B",
-                          }}
-                        >
-                          Đã từ chối
                         </option>
                         <option
                           value="deactivated"
@@ -777,22 +756,13 @@ const Promotions = () => {
                           <Edit size={18} />
                         </button>
                         {promotion.status === "pending" && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(promotion.id)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Duyệt"
-                            >
-                              <CheckCircle2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleReject(promotion.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Từ chối"
-                            >
-                              <XCircle size={18} />
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleApprove(promotion.id)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Duyệt"
+                          >
+                            <CheckCircle2 size={18} />
+                          </button>
                         )}
                         {promotion.isActive &&
                           promotion.status === "approved" && (

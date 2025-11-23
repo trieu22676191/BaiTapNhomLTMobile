@@ -2,6 +2,7 @@ import {
   Ban,
   Calendar,
   Check,
+  Filter,
   Mail,
   MapPin,
   Phone,
@@ -23,6 +24,7 @@ const Users = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -267,7 +269,7 @@ const Users = () => {
 
     setCreatingAdmin(true);
     try {
-      const response = await axiosInstance.post("/admin/users", {
+      const response = await axiosInstance.post("/users", {
         username: newAdminData.username.trim(),
         password: newAdminData.password.trim(),
         email: newAdminData.email.trim(),
@@ -420,12 +422,33 @@ const Users = () => {
     }
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
+  const filteredUsers = users.filter((user) => {
+    // Lọc theo search term
+    const matchesSearch =
       user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.fullName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      user.fullName.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Lọc theo role
+    const matchesRole =
+      roleFilter === "all" ||
+      (roleFilter === "admin" &&
+        (user.role?.name?.toLowerCase() === "admin" ||
+          user.role?.name?.toUpperCase() === "ADMIN")) ||
+      (roleFilter === "user" &&
+        user.role?.name?.toLowerCase() !== "admin" &&
+        user.role?.name?.toUpperCase() !== "ADMIN");
+
+    return matchesSearch && matchesRole;
+  });
+
+  // Đếm số lượng user theo role
+  const adminCount = users.filter(
+    (user) =>
+      user.role?.name?.toLowerCase() === "admin" ||
+      user.role?.name?.toUpperCase() === "ADMIN"
+  ).length;
+  const userCount = users.length - adminCount;
 
   if (loading) {
     return (
@@ -475,6 +498,11 @@ const Users = () => {
           </h1>
           <p className="text-gray-600 mt-1">
             Tổng số: {users.length} người dùng
+            {roleFilter !== "all" && (
+              <span className="ml-2">
+                ({filteredUsers.length} {roleFilter === "admin" ? "admin" : "user"})
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-3">
@@ -516,8 +544,9 @@ const Users = () => {
         </div>
       )}
 
-      {/* Search */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      {/* Search and Filter */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
+        {/* Search */}
         <div className="relative">
           <Search
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
@@ -530,6 +559,48 @@ const Users = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
+        </div>
+
+        {/* Role Filter */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Lọc theo vai trò:</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setRoleFilter("all")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                roleFilter === "all"
+                  ? "bg-primary-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Tất cả ({users.length})
+            </button>
+            <button
+              onClick={() => setRoleFilter("admin")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${
+                roleFilter === "admin"
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              <Shield size={16} />
+              Admin ({adminCount})
+            </button>
+            <button
+              onClick={() => setRoleFilter("user")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${
+                roleFilter === "user"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              <UserIcon size={16} />
+              User ({userCount})
+            </button>
+          </div>
         </div>
       </div>
 
