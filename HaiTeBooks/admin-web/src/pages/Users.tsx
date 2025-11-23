@@ -9,6 +9,7 @@ import {
   Search,
   Shield,
   User as UserIcon,
+  UserPlus,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -25,6 +26,18 @@ const Users = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showCreateAdminModal, setShowCreateAdminModal] = useState(false);
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [newAdminData, setNewAdminData] = useState({
+    username: "",
+    password: "",
+    confirmPassword: "",
+    email: "",
+    fullName: "",
+    phone: "",
+    address: "",
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -54,17 +67,8 @@ const Users = () => {
       const response = await axiosInstance.get("/admin/users");
 
       if (response.data && Array.isArray(response.data)) {
-        // Debug: Log raw data từ backend
-        console.log("🔍 Raw users data from API:", JSON.stringify(response.data, null, 2));
-        
         // Normalize user data từ API response
         const normalizedUsers: User[] = response.data.map((user: any) => {
-          // Debug: Log từng user để xem format
-          console.log(`🔍 User ${user.id} raw data:`, {
-            role: user.role,
-            role_id: user.role_id,
-            username: user.username,
-          });
           // Xử lý role - backend có thể trả về role object, role string, hoặc role_id
           let roleObj;
           
@@ -81,42 +85,32 @@ const Users = () => {
               .trim();
           };
           
-          // Kiểm tra xem role là object hay string
-          console.log(`🔍 User ${user.id} - role type:`, typeof user.role, "value:", user.role);
-          
           if (user.role && typeof user.role === "object" && user.role !== null) {
             // Backend trả về role object
-            console.log(`  → Processing as object:`, user.role);
             const roleName = normalizeRoleName(user.role.name || user.role);
             const isAdmin = roleName === "admin";
             roleObj = {
               id: user.role.id || (isAdmin ? 1 : 2),
               name: isAdmin ? "admin" : "user",
             };
-            console.log(`  → Normalized role object:`, roleObj);
           } else if (user.role && typeof user.role === "string") {
             // Backend trả về role là string (ví dụ: "ADMIN", "admin", "ROLE_ADMIN")
-            console.log(`  → Processing as string: "${user.role}"`);
             const roleName = normalizeRoleName(user.role);
             const isAdmin = roleName === "admin";
             roleObj = {
               id: isAdmin ? 1 : 2,
               name: isAdmin ? "admin" : "user",
             };
-            console.log(`  → Normalized role from string:`, roleObj);
           } else if (user.role_id !== undefined && user.role_id !== null) {
             // Backend trả về role_id (string hoặc number)
-            console.log(`  → Processing role_id:`, user.role_id);
             const roleName = normalizeRoleName(user.role_id);
             const isAdmin = roleName === "admin" || user.role_id === 1 || user.role_id === "1";
             roleObj = {
               id: isAdmin ? 1 : 2,
               name: isAdmin ? "admin" : "user",
             };
-            console.log(`  → Normalized role from role_id:`, roleObj);
           } else {
             // Mặc định là user
-            console.log(`  → No role found, defaulting to user`);
             roleObj = {
               id: 2,
               name: "user",
@@ -135,23 +129,14 @@ const Users = () => {
             createdAt: user.createdAt || user.created_at,
           };
           
-          // Debug: Log normalized user
-          console.log(`✅ User ${normalizedUser.id} normalized:`, {
-            username: normalizedUser.username,
-            role: normalizedUser.role,
-          });
-          
           return normalizedUser;
         });
         
         setUsers(normalizedUsers);
-        console.log("✅ All users normalized:", normalizedUsers);
       } else {
         throw new Error("Dữ liệu không hợp lệ từ server");
       }
     } catch (error: any) {
-      console.error("Lỗi khi tải người dùng:", error);
-
       let errorMessage = "Không thể tải danh sách người dùng";
 
       if (error.response) {
@@ -212,6 +197,123 @@ const Users = () => {
     setSelectedUser(null);
   };
 
+  const handleOpenCreateAdminModal = () => {
+    setShowCreateAdminModal(true);
+    setNewAdminData({
+      username: "",
+      password: "",
+      confirmPassword: "",
+      email: "",
+      fullName: "",
+      phone: "",
+      address: "",
+    });
+    setFormErrors({});
+  };
+
+  const handleCloseCreateAdminModal = () => {
+    setShowCreateAdminModal(false);
+    setNewAdminData({
+      username: "",
+      password: "",
+      confirmPassword: "",
+      email: "",
+      fullName: "",
+      phone: "",
+      address: "",
+    });
+    setFormErrors({});
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!newAdminData.username.trim()) {
+      errors.username = "Tên đăng nhập không được để trống";
+    } else if (newAdminData.username.length < 3) {
+      errors.username = "Tên đăng nhập phải có ít nhất 3 ký tự";
+    }
+
+    if (!newAdminData.password.trim()) {
+      errors.password = "Mật khẩu không được để trống";
+    } else if (newAdminData.password.length < 6) {
+      errors.password = "Mật khẩu phải có ít nhất 6 ký tự";
+    }
+
+    if (!newAdminData.confirmPassword.trim()) {
+      errors.confirmPassword = "Xác nhận mật khẩu không được để trống";
+    } else if (newAdminData.password !== newAdminData.confirmPassword) {
+      errors.confirmPassword = "Mật khẩu xác nhận không khớp";
+    }
+
+    if (!newAdminData.email.trim()) {
+      errors.email = "Email không được để trống";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newAdminData.email)) {
+      errors.email = "Email không hợp lệ";
+    }
+
+    if (!newAdminData.fullName.trim()) {
+      errors.fullName = "Họ tên không được để trống";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleCreateAdmin = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    setCreatingAdmin(true);
+    try {
+      const response = await axiosInstance.post("/admin/users", {
+        username: newAdminData.username.trim(),
+        password: newAdminData.password.trim(),
+        email: newAdminData.email.trim(),
+        fullName: newAdminData.fullName.trim(),
+        phone: newAdminData.phone.trim() || null,
+        address: newAdminData.address.trim() || null,
+        roleName: "admin", // Tạo với role admin
+        enabled: true,
+      });
+
+      if (response.data) {
+        toast.success("Tạo tài khoản admin thành công!");
+        handleCloseCreateAdminModal();
+        fetchUsers(); // Refresh danh sách
+      }
+    } catch (error: any) {
+      let errorMessage = "Không thể tạo tài khoản admin. Vui lòng thử lại.";
+
+      if (error.response) {
+        const status = error.response.status;
+        const responseData = error.response.data;
+
+        if (status === 400) {
+          errorMessage =
+            responseData?.message ||
+            "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.";
+        } else if (status === 409) {
+          errorMessage = "Tên đăng nhập hoặc email đã tồn tại!";
+        } else if (status === 401) {
+          errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!";
+        } else if (status === 403) {
+          errorMessage = "Bạn không có quyền thực hiện thao tác này!";
+        } else if (status >= 500) {
+          errorMessage =
+            responseData?.message || "Lỗi server. Vui lòng thử lại sau!";
+        } else {
+          errorMessage = responseData?.message || errorMessage;
+        }
+      }
+
+      toast.error(errorMessage);
+    } finally {
+      setCreatingAdmin(false);
+    }
+  };
+
   const handleToggleUserStatus = (user: User) => {
     const action = user.enabled ? "khóa" : "mở khóa";
     const confirmMessage = `Bạn có chắc muốn ${action} người dùng "${
@@ -257,8 +359,6 @@ const Users = () => {
         toast.success(`Đã ${action} người dùng thành công!`);
       }
     } catch (error: any) {
-      console.error("Lỗi khi cập nhật trạng thái người dùng:", error);
-
       // Nếu lỗi 400 (Bad Request), thử lại với đầy đủ thông tin
       if (error.response?.status === 400) {
         try {
@@ -290,7 +390,7 @@ const Users = () => {
             return;
           }
         } catch (retryError: any) {
-          console.error("Lỗi khi thử lại với đầy đủ thông tin:", retryError);
+          // Lỗi khi thử lại
         }
       }
 
@@ -311,7 +411,6 @@ const Users = () => {
         } else if (status >= 500) {
           errorMessage =
             responseData?.message || "Lỗi server. Vui lòng thử lại sau!";
-          console.error("Server error details:", responseData);
         } else {
           errorMessage = responseData?.message || errorMessage;
         }
@@ -378,17 +477,26 @@ const Users = () => {
             Tổng số: {users.length} người dùng
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <RefreshCw
-            size={18}
-            className={`mr-2 ${refreshing ? "animate-spin" : ""}`}
-          />
-          {refreshing ? "Đang tải..." : "Làm mới"}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleOpenCreateAdminModal}
+            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            <UserPlus size={18} className="mr-2" />
+            Tạo Admin mới
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw
+              size={18}
+              className={`mr-2 ${refreshing ? "animate-spin" : ""}`}
+            />
+            {refreshing ? "Đang tải..." : "Làm mới"}
+          </button>
+        </div>
       </div>
 
       {/* Error Banner */}
@@ -709,6 +817,222 @@ const Users = () => {
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Admin Modal */}
+      {showCreateAdminModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Tạo tài khoản Admin mới
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Điền thông tin để tạo tài khoản quản trị viên mới
+                </p>
+              </div>
+              <button
+                onClick={handleCloseCreateAdminModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={creatingAdmin}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-4">
+              {/* Username */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Tên đăng nhập <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newAdminData.username}
+                  onChange={(e) =>
+                    setNewAdminData({ ...newAdminData, username: e.target.value })
+                  }
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.username ? "border-red-300" : "border-gray-300"
+                  }`}
+                  placeholder="Nhập tên đăng nhập"
+                  disabled={creatingAdmin}
+                />
+                {formErrors.username && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.username}</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={newAdminData.email}
+                  onChange={(e) =>
+                    setNewAdminData({ ...newAdminData, email: e.target.value })
+                  }
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.email ? "border-red-300" : "border-gray-300"
+                  }`}
+                  placeholder="Nhập email"
+                  disabled={creatingAdmin}
+                />
+                {formErrors.email && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.email}</p>
+                )}
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Họ và tên <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newAdminData.fullName}
+                  onChange={(e) =>
+                    setNewAdminData({ ...newAdminData, fullName: e.target.value })
+                  }
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.fullName ? "border-red-300" : "border-gray-300"
+                  }`}
+                  placeholder="Nhập họ và tên"
+                  disabled={creatingAdmin}
+                />
+                {formErrors.fullName && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.fullName}</p>
+                )}
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Mật khẩu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={newAdminData.password}
+                  onChange={(e) =>
+                    setNewAdminData({ ...newAdminData, password: e.target.value })
+                  }
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.password ? "border-red-300" : "border-gray-300"
+                  }`}
+                  placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
+                  disabled={creatingAdmin}
+                />
+                {formErrors.password && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.password}</p>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Xác nhận mật khẩu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={newAdminData.confirmPassword}
+                  onChange={(e) =>
+                    setNewAdminData({
+                      ...newAdminData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                    formErrors.confirmPassword ? "border-red-300" : "border-gray-300"
+                  }`}
+                  placeholder="Nhập lại mật khẩu"
+                  disabled={creatingAdmin}
+                />
+                {formErrors.confirmPassword && (
+                  <p className="text-red-500 text-sm mt-1">
+                    {formErrors.confirmPassword}
+                  </p>
+                )}
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Số điện thoại
+                </label>
+                <input
+                  type="tel"
+                  value={newAdminData.phone}
+                  onChange={(e) =>
+                    setNewAdminData({ ...newAdminData, phone: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Nhập số điện thoại (tùy chọn)"
+                  disabled={creatingAdmin}
+                />
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Địa chỉ
+                </label>
+                <textarea
+                  value={newAdminData.address}
+                  onChange={(e) =>
+                    setNewAdminData({ ...newAdminData, address: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Nhập địa chỉ (tùy chọn)"
+                  rows={3}
+                  disabled={creatingAdmin}
+                />
+              </div>
+
+              {/* Role Info */}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <Shield size={20} className="text-purple-600 mr-2" />
+                  <p className="text-sm text-purple-800">
+                    <span className="font-semibold">Vai trò:</span> Admin (Quản trị viên)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={handleCloseCreateAdminModal}
+                disabled={creatingAdmin}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleCreateAdmin}
+                disabled={creatingAdmin}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+              >
+                {creatingAdmin ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Đang tạo...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={18} className="mr-2" />
+                    Tạo Admin
+                  </>
+                )}
               </button>
             </div>
           </div>
