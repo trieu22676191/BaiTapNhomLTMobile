@@ -46,13 +46,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const response = await axiosInstance.get("/users/me");
           const apiUser = response.data;
 
-          console.log(
-            "🔍 API User Response:",
-            JSON.stringify(apiUser, null, 2)
-          );
-          console.log("🔍 API User ID:", apiUser?.id);
-          console.log("🔍 API User keys:", Object.keys(apiUser || {}));
-
           // Normalize user object từ API response
           const roleName = (apiUser?.role?.name || apiUser?.role || "user")
             .toString()
@@ -62,7 +55,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // ✅ KIỂM TRA ROLE KHI RESTORE SESSION - Chỉ cho phép ADMIN
           const roleNameUpper = roleName.toUpperCase();
           if (roleNameUpper !== "ADMIN") {
-            console.warn("⚠️ User không phải admin, đăng xuất...");
             localStorage.removeItem("admin_token");
             localStorage.removeItem("admin_user");
             setUser(null);
@@ -88,18 +80,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             },
           };
 
-          console.log(
-            "✅ Normalized User:",
-            JSON.stringify(normalizedUser, null, 2)
-          );
-          console.log("✅ Normalized User ID:", normalizedUser.id);
-
           // Cập nhật localStorage với user đầy đủ thông tin
           localStorage.setItem("admin_user", JSON.stringify(normalizedUser));
           setUser(normalizedUser);
         } catch (error) {
           // Token không hợp lệ
-          console.error("❌ Auth check failed:", error);
           localStorage.removeItem("admin_token");
           localStorage.removeItem("admin_user");
           setUser(null);
@@ -118,17 +103,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password,
       });
 
-      // ⭐ LOG để debug
-      console.log("🔐 Login Response:", response.data);
-
       // ⭐ Backend có thể trả về nhiều format:
       // Format 1: { token, user: {...} }
       // Format 2: { token, username, role, ... }
       const token = response.data.token;
       const userData = response.data.user || response.data; // Nếu không có user object, dùng chính response.data
-
-      console.log("👤 User Data:", userData);
-      console.log("🔑 Token:", token ? "✅ Có" : "❌ Không có");
 
       if (!token) {
         throw new Error("Backend không trả về token!");
@@ -143,7 +122,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const userResponse = await axiosInstance.get("/users/me");
         apiUser = userResponse.data;
-        console.log("👤 API User Response:", JSON.stringify(apiUser, null, 2));
       } catch (error) {
         // Nếu không fetch được user info, xóa token và throw error
         localStorage.removeItem("admin_token");
@@ -165,8 +143,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .replace("role_", "");
 
       const userRole = roleName.toUpperCase();
-
-      console.log("🎭 User Role detected:", userRole);
 
       // ✅ KIỂM TRA ROLE - Chỉ cho phép ADMIN đăng nhập
       // Hiển thị thông báo chung để bảo mật (không tiết lộ tài khoản tồn tại nhưng không có quyền)
@@ -193,15 +169,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       };
 
-      console.log("✅ Normalized User:", normalizedUser);
-
       localStorage.setItem("admin_user", JSON.stringify(normalizedUser));
       setUser(normalizedUser);
-
-      console.log("✅ Đăng nhập thành công!");
     } catch (error: any) {
-      console.error("❌ Login Error:", error);
-
       const status = error.response?.status;
       const errorMessage = error.response?.data?.message || error.message || "";
 
