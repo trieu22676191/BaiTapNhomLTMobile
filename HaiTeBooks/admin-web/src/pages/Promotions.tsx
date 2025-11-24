@@ -56,13 +56,9 @@ const Promotions = () => {
       return promotion.status;
     }
 
-    // Nếu không có status, dựa vào isActive và approvedByUserId
+    // Đơn giản: chỉ có approved (hoạt động) và deactivated (vô hiệu hóa)
     if (!promotion.isActive) {
       return "deactivated";
-    }
-
-    if (!promotion.approvedByUserId) {
-      return "pending";
     }
 
     return "approved";
@@ -196,25 +192,11 @@ const Promotions = () => {
 
           toast.success("Cập nhật khuyến mãi thành công!");
         } else {
-          // Create new promotion
-          const response = await axiosInstance.post(
+          // Create new promotion - Tạo mới → hoạt động ngay
+          await axiosInstance.post(
             `/promotions/create/${userId}`,
             promotionData
           );
-
-          // Tự động approve nếu user là admin
-          const createdPromotion = response.data;
-          const userRole =
-            (user as any)?.role_id || user?.role?.name?.toLowerCase() || "";
-          if (createdPromotion?.id && userRole === "admin") {
-            try {
-              await axiosInstance.put(
-                `/promotions/approve/${createdPromotion.id}/${userId}`
-              );
-            } catch (approveError: any) {
-              // Không throw error, chỉ log vì promotion đã được tạo thành công
-            }
-          }
 
           toast.success("Tạo khuyến mãi thành công!");
         }
@@ -235,36 +217,6 @@ const Promotions = () => {
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleApprove = (promotionId: number) => {
-    if (!user?.id) {
-      toast.error("Không tìm thấy thông tin người dùng");
-      return;
-    }
-
-    setConfirmDialog({
-      isOpen: true,
-      title: "Xác nhận duyệt khuyến mãi",
-      message: "Bạn có chắc chắn muốn duyệt khuyến mãi này?",
-      type: "info",
-      onConfirm: () => {
-        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-        performApprove(promotionId);
-      },
-    });
-  };
-
-  const performApprove = async (promotionId: number) => {
-    try {
-      await axiosInstance.put(`/promotions/approve/${promotionId}/${user?.id}`);
-      toast.success("Duyệt khuyến mãi thành công!");
-      fetchPromotions();
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.message || "Có lỗi xảy ra khi duyệt khuyến mãi!";
-      toast.error(errorMessage);
     }
   };
 
@@ -380,10 +332,30 @@ const Promotions = () => {
     let confirmType: "danger" | "warning" | "info" = "warning";
 
     if (newStatus === "approved") {
-      confirmTitle = "Xác nhận duyệt khuyến mãi";
-      confirmMessage = "Bạn có chắc chắn muốn duyệt khuyến mãi này?";
-      confirmType = "info";
+      // ✅ Kích hoạt lại từ deactivated
+      if (oldStatus === "deactivated") {
+        // Kiểm tra thời gian còn không
+        if (currentPromotion) {
+          const today = new Date();
+          const endDate = new Date(currentPromotion.endDate);
+          if (today > endDate) {
+            toast.error("Không thể kích hoạt lại khuyến mãi đã hết hạn");
+            return;
+          }
+        }
+        confirmTitle = "Xác nhận kích hoạt lại khuyến mãi";
+        confirmMessage = "Bạn có chắc chắn muốn kích hoạt lại khuyến mãi này?";
+        confirmType = "info";
+      } else {
+        // Không thể approve từ approved
+        return;
+      }
     } else if (newStatus === "deactivated") {
+      // ✅ Vô hiệu hóa từ approved
+      if (oldStatus !== "approved") {
+        toast.error("Chỉ có thể vô hiệu hóa khuyến mãi đang hoạt động");
+        return;
+      }
       confirmTitle = "Xác nhận vô hiệu hóa khuyến mãi";
       confirmMessage = "Bạn có chắc chắn muốn vô hiệu hóa khuyến mãi này?";
       confirmType = "danger";
@@ -410,24 +382,31 @@ const Promotions = () => {
     userId: number
   ) => {
     try {
+      const currentPromotion = promotions.find((p) => p.id === promotionId);
+      const currentStatus = currentPromotion
+        ? getCurrentStatus(currentPromotion)
+        : "";
+
       if (newStatus === "approved") {
-        // Tìm promotion hiện tại để kiểm tra trạng thái
-        const currentPromotion = promotions.find((p) => p.id === promotionId);
-        const currentStatus = currentPromotion
-          ? getCurrentStatus(currentPromotion)
-          : "";
-
-        // Nếu promotion đã bị vô hiệu hóa, không thể kích hoạt lại
+        // ✅ Kích hoạt lại từ deactivated
         if (currentStatus === "deactivated") {
-          toast.error("Khuyến mãi hết hiệu lực không thể mở lại");
-          return;
+          // Kiểm tra thời gian còn không
+          if (currentPromotion) {
+            const today = new Date();
+            const endDate = new Date(currentPromotion.endDate);
+            if (today > endDate) {
+              toast.error("Không thể kích hoạt lại khuyến mãi đã hết hạn");
+              return;
+            }
+          }
+          // Dùng endpoint updateStatus để activate
+          await axiosInstance.put(
+            `/promotions/update-status/${promotionId}/${userId}?isActive=true`
+          );
+          toast.success("Kích hoạt lại khuyến mãi thành công!");
         }
-
-        // Nếu chưa được approve (pending) hoặc chưa có approvedByUserId
-        // → Dùng endpoint approve
-        await axiosInstance.put(`/promotions/approve/${promotionId}/${userId}`);
-        toast.success("Duyệt khuyến mãi thành công!");
       } else if (newStatus === "deactivated") {
+        // ✅ Vô hiệu hóa từ approved
         await axiosInstance.put(
           `/promotions/deactivate/${promotionId}/${userId}`
         );
@@ -691,60 +670,98 @@ const Promotions = () => {
                         : "Không có"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={
-                          getCurrentStatus(promotion) === "pending" ||
-                          getCurrentStatus(promotion) === "rejected"
-                            ? "deactivated"
-                            : getCurrentStatus(promotion)
+                      {(() => {
+                        const currentStatus = getCurrentStatus(promotion);
+
+                        // ✅ Nếu đang hoạt động, chỉ cho phép deactivate
+                        if (currentStatus === "approved") {
+                          return (
+                            <select
+                              value={currentStatus}
+                              onChange={(e) =>
+                                handleStatusChange(promotion.id, e.target.value)
+                              }
+                              className="text-xs font-semibold rounded-full px-3 py-1.5 border-0 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-colors appearance-none bg-no-repeat bg-right pr-8"
+                              style={{
+                                backgroundColor: getStatusColor("approved").bg,
+                                color: getStatusColor("approved").text,
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${encodeURIComponent(
+                                  getStatusColor("approved").text
+                                )}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                                backgroundPosition: "right 0.5rem center",
+                              }}
+                            >
+                              <option
+                                value="approved"
+                                style={{
+                                  backgroundColor: "#D1FAE5",
+                                  color: "#065F46",
+                                }}
+                              >
+                                Đang hoạt động
+                              </option>
+                              <option
+                                value="deactivated"
+                                style={{
+                                  backgroundColor: "#F3F4F6",
+                                  color: "#374151",
+                                }}
+                              >
+                                Đã vô hiệu hóa
+                              </option>
+                            </select>
+                          );
                         }
-                        onChange={(e) =>
-                          handleStatusChange(promotion.id, e.target.value)
+
+                        // ✅ Nếu đã vô hiệu hóa, cho phép activate lại (nếu thời gian còn)
+                        if (currentStatus === "deactivated") {
+                          const today = new Date();
+                          const endDate = new Date(promotion.endDate);
+                          const canActivate = today <= endDate;
+
+                          return (
+                            <select
+                              value={currentStatus}
+                              onChange={(e) =>
+                                handleStatusChange(promotion.id, e.target.value)
+                              }
+                              className="text-xs font-semibold rounded-full px-3 py-1.5 border-0 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-colors appearance-none bg-no-repeat bg-right pr-8"
+                              style={{
+                                backgroundColor:
+                                  getStatusColor("deactivated").bg,
+                                color: getStatusColor("deactivated").text,
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${encodeURIComponent(
+                                  getStatusColor("deactivated").text
+                                )}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                                backgroundPosition: "right 0.5rem center",
+                              }}
+                            >
+                              <option
+                                value="deactivated"
+                                style={{
+                                  backgroundColor: "#F3F4F6",
+                                  color: "#374151",
+                                }}
+                              >
+                                Đã vô hiệu hóa
+                              </option>
+                              {canActivate && (
+                                <option
+                                  value="approved"
+                                  style={{
+                                    backgroundColor: "#D1FAE5",
+                                    color: "#065F46",
+                                  }}
+                                >
+                                  Kích hoạt lại
+                                </option>
+                              )}
+                            </select>
+                          );
                         }
-                        className="text-xs font-semibold rounded-full px-3 py-1.5 border-0 focus:ring-2 focus:ring-primary-500 cursor-pointer transition-colors appearance-none bg-no-repeat bg-right pr-8"
-                        style={{
-                          backgroundColor: getStatusColor(
-                            getCurrentStatus(promotion) === "pending" ||
-                              getCurrentStatus(promotion) === "rejected"
-                              ? "deactivated"
-                              : getCurrentStatus(promotion)
-                          ).bg,
-                          color: getStatusColor(
-                            getCurrentStatus(promotion) === "pending" ||
-                              getCurrentStatus(promotion) === "rejected"
-                              ? "deactivated"
-                              : getCurrentStatus(promotion)
-                          ).text,
-                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${encodeURIComponent(
-                            getStatusColor(
-                              getCurrentStatus(promotion) === "pending" ||
-                                getCurrentStatus(promotion) === "rejected"
-                                ? "deactivated"
-                                : getCurrentStatus(promotion)
-                            ).text
-                          )}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-                          backgroundPosition: "right 0.5rem center",
-                        }}
-                      >
-                        <option
-                          value="approved"
-                          style={{
-                            backgroundColor: "#D1FAE5",
-                            color: "#065F46",
-                          }}
-                        >
-                          Đang hoạt động
-                        </option>
-                        <option
-                          value="deactivated"
-                          style={{
-                            backgroundColor: "#F3F4F6",
-                            color: "#374151",
-                          }}
-                        >
-                          Đã vô hiệu hóa
-                        </option>
-                      </select>
+
+                        return null;
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
@@ -755,25 +772,15 @@ const Promotions = () => {
                         >
                           <Edit size={18} />
                         </button>
-                        {promotion.status === "pending" && (
+                        {getCurrentStatus(promotion) === "approved" && (
                           <button
-                            onClick={() => handleApprove(promotion.id)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Duyệt"
+                            onClick={() => handleDeactivate(promotion.id)}
+                            className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                            title="Vô hiệu hóa"
                           >
-                            <CheckCircle2 size={18} />
+                            <PowerOff size={18} />
                           </button>
                         )}
-                        {promotion.isActive &&
-                          promotion.status === "approved" && (
-                            <button
-                              onClick={() => handleDeactivate(promotion.id)}
-                              className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                              title="Vô hiệu hóa"
-                            >
-                              <PowerOff size={18} />
-                            </button>
-                          )}
                       </div>
                     </td>
                   </tr>
